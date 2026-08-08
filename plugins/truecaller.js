@@ -1,11 +1,12 @@
 const { cmd } = require("../command");
+const axios = require("axios");
 
 cmd(
   {
     pattern: "truecaller",
     alias: ["number", "true", "whois", "caller"],
     react: "🔍",
-    desc: "Check phone number details via WhatsApp",
+    desc: "Check phone number details",
     category: "tools",
     filename: __filename,
   },
@@ -21,34 +22,34 @@ cmd(
   ) => {
     try {
       if (!q) {
-        return reply("❌ *Please provide a phone number!*\n\n*Example:* `.number 94767945968`");
+        return reply("❌ *Please provide a phone number!*\n\n*Example:* `.truecaller 94767945968`");
       }
 
       const number = q.replace(/[^0-9]/g, "");
-      const jid = number + "@s.whatsapp.net";
 
-      await reply("🔍 *Checking number details... Please wait!*");
+      await reply("🔍 *Searching Truecaller database... Please wait!*");
 
-      let profileName = "Unknown";
-      let about = "Not Available";
+      const response = await axios.get(`https://api.vyturex.com/truecaller?number=${number}`).catch(() => null);
 
-      try {
-        const nameData = await chathubro.getName(jid);
-        if (nameData) profileName = nameData;
-      } catch (err) {}
+      if (!response || !response.data || !response.data.name) {
+        return reply("❌ *Could not find any details for this number. The number might not be registered on Truecaller.*");
+      }
 
-      try {
-        const statusData = await chathubro.fetchStatus(jid);
-        if (statusData && statusData.status) about = statusData.status;
-      } catch (err) {}
+      const data = response.data;
+      
+      let name = data.name || "Unknown";
+      let carrier = data.carrier || "Unknown";
+      let country = data.country || "Sri Lanka";
+      let email = data.email || "Not Available";
 
       let desc = `╭───────────────◆
-│   🔍 *NUMBER INFO (WHATSAPP)* 🔍
+│   🔍 *TRUECALLER SEARCH* 🔍
 ├───────────────◆
-│ 👤 *Name:* ${profileName}
+│ 👤 *Name:* ${name}
 │ 📞 *Number:* +${number}
-│ 💬 *About/Bio:* ${about}
-│ 🌐 *Platform:* WhatsApp Database
+│ 🌐 *Country:* ${country}
+│ 📡 *Carrier:* ${carrier}
+│ 📧 *Email:* ${email}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
@@ -58,7 +59,7 @@ cmd(
       }, { quoted: mek });
 
     } catch (e) {
-      console.error("Number Info Error:", e);
+      console.error("Truecaller Error:", e);
       reply(`❌ *Error:* ${e.message}`);
     }
   }
