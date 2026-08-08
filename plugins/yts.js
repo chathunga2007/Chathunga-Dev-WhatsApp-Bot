@@ -4,14 +4,14 @@ const yts = require("yt-search");
 cmd(
   {
     pattern: "yts",
-    alias: ["yts", "youtubesearch"],
+    alias: ["YouTube Search", "youtubesearch"],
     react: "🔎",
-    desc: "Search YouTube videos",
+    desc: "Search YouTube Videos",
     category: "search",
     filename: __filename,
   },
   async (
-    danuwa,
+    chathubro,
     mek,
     m,
     {
@@ -37,18 +37,21 @@ cmd(
         `🎬 *${i + 1}. ${v.title}*\n📅 ${v.ago} | ⌛ ${v.timestamp} | 👁️ ${v.views.toLocaleString()} views\n🔗 ${v.url}`
       )).join("\n\n");
 
-      const caption = `  
-Your youtube search results
-─────────────────────────
-🔎 *Query*: ${q}
-${formattedResults}
-   `;
+      const caption = `╭───────────────◆
+│   🎥 *YOUTUBE SEARCH* 🎥
+├───────────────◆
+│ 🔍 *Query:* ${q}
+└───────────────◆
 
-      await danuwa.sendMessage(
+${formattedResults}
+
+> *© Powered by Chathunga Bimsara*`;
+
+      await chathubro.sendMessage(
         from,
         {
           image: {
-            url: "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/yts.png?raw=true",
+            url: "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-YouTube-Search.png?raw=true",
           },
           caption,
         },
