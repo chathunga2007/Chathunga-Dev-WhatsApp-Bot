@@ -29,15 +29,15 @@ cmd(
 
       await reply("🔍 *Searching Truecaller database... Please wait!*");
 
-      const response = await axios.get(`https://api.vyturex.com/truecaller?number=${number}`).catch(() => null);
+      const response = await axios.get(`https://api.siputzx.my.id/api/tools/truecaller?phone=${number}`).catch(() => null);
 
-      if (!response || !response.data || !response.data.name) {
+      if (!response || !response.data || (!response.data.status && !response.data.data)) {
         return reply("❌ *Could not find any details for this number. The number might not be registered on Truecaller.*");
       }
 
-      const data = response.data;
+      const data = response.data.data || response.data;
       
-      let name = data.name || "Unknown";
+      let name = data.name || data.display_name || "Unknown";
       let carrier = data.carrier || "Unknown";
       let country = data.country || "Sri Lanka";
       let email = data.email || "Not Available";
