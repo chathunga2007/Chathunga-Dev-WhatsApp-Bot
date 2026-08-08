@@ -23,6 +23,8 @@ const {
 const { File } = require('megajs');
 const { commands, replyHandlers } = require('./command');
 
+const antidelete = require('./plugins/antidelete');
+
 const app = express();
 const port = process.env.PORT || 8000;
 
@@ -63,7 +65,7 @@ async function ensureSessionFile() {
 }
 
 async function connectToWA() {
-  console.log("Connecting chathunga_dev-Dev 🧬...");
+  console.log("Connecting Chathunga-Dev 🧬...");
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, '/auth_info_baileys/'));
   const { version } = await fetchLatestBaileysVersion();
 
@@ -112,6 +114,8 @@ async function connectToWA() {
 
     const mek = messages[0];
     if (!mek || !mek.message) return;
+
+    antidelete.saveMessage(mek);
 
     mek.message = getContentType(mek.message) === 'ephemeralMessage' ? mek.message.ephemeralMessage.message : mek.message;
     if (mek.key.remoteJid === 'status@broadcast') return;
@@ -174,6 +178,10 @@ async function connectToWA() {
         }
       }
     }
+  });
+
+  chathunga_dev.ev.on('messages.delete', async (deletedData) => {
+    antidelete.handleDelete(chathunga_dev, deletedData);
   });
 }
 
