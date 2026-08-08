@@ -2,7 +2,8 @@ const { cmd, commands } = require('../command');
 const config = require('../config');
 
 cmd({
-    pattern: "hi"+"HI",
+    pattern: "hi",
+    alias: ["Hi", "Hello", "HI"],
     desc: "Check bot online or no.",
     category: "main",
     filename: __filename
