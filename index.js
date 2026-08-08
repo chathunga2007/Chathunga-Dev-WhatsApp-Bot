@@ -120,10 +120,11 @@ async function connectToWA() {
     const type = getContentType(mek.message);
     const from = mek.key.remoteJid;
     const body = type === 'conversation' ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || '';
-    const isCmd = body.startsWith(prefix);
-    const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : '';
-    const args = body.trim().split(/ +/).slice(1);
+
+    const args = body.trim().split(/ +/);
+    const commandName = args.shift()?.toLowerCase() || '';
     const q = args.join(' ');
+    const isCmd = Boolean(commandName);
 
     const sender = mek.key.fromMe ? chathunga_dev.user.id : (mek.key.participant || mek.key.remoteJid);
     const senderNumber = sender.split('@')[0];
