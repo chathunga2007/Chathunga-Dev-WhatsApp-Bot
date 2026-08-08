@@ -46,14 +46,19 @@ cmd(
       
       await bot.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
-      const { data } = await axios.get(`https://api.hermitbop.xyz/download/ytmp4?url=${encodeURIComponent(video.url)}`);
-      
-      if (!data?.status || !data?.result?.downloadUrl) return reply("❌ *Failed to download video!*");
+      const apiUrl = `https://deliriussapi-oficial.vercel.app/download/ytmp4?url=${encodeURIComponent(video.url)}`;
+      const { data } = await axios.get(apiUrl);
+
+      if (!data || !data.data || !data.data.download?.url) {
+        return reply("❌ *Failed to download video!*");
+      }
+
+      const downloadUrl = data.data.download.url;
 
       await bot.sendMessage(
         from,
         {
-          video: { url: data.result.downloadUrl },
+          video: { url: downloadUrl },
           mimetype: "video/mp4",
           fileName: `${video.title}.mp4`,
           caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`
