@@ -26,7 +26,7 @@ const { commands, replyHandlers } = require('./command');
 const app = express();
 const port = process.env.PORT || 8000;
 
-const prefix = '.';
+const prefix = '';
 const ownerNumber = ['94767945968'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
@@ -85,7 +85,7 @@ async function connectToWA() {
         connectToWA();
       }
     } else if (connection === 'open') {
-      console.log('✅ chathunga_dev-Dev connected to WhatsApp');
+      console.log('✅ Chathunga-Dev connected to WhatsApp');
 
       const up = `Chathunga-Dev Connected ✅\n\nPREFIX: ${prefix}`;
       await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
@@ -179,7 +179,7 @@ async function connectToWA() {
 ensureSessionFile();
 
 app.get("/", (req, res) => {
-  res.send("Hey, chathunga_dev-Dev Started✅");
+  res.send("Hey, Chathunga-Dev Started✅");
 });
 
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
