@@ -48,7 +48,7 @@ cmd(
         from,
         {
           image: {
-            url: "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/DANUWA-MD.png?raw=true",
+            url: "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-Wallpaper-Downloader.png?raw=true",
           },
           caption: header,
         },
