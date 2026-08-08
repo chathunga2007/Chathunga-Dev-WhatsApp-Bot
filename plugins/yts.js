@@ -49,7 +49,12 @@ ${formattedResults}
 
       await chathubro.sendMessage(
         from,
-        { text: caption },
+        {
+          image: {
+            url: "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/yts.png?raw=true",
+          },
+          caption,
+        },
         { quoted: mek }
       );
     } catch (err) {
