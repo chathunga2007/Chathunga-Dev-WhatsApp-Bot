@@ -4,14 +4,14 @@ const getFbVideoInfo = require("@xaviabot/fb-downloader");
 cmd(
   {
     pattern: "fb",
-    alias: ["facebook"],
+    alias: ["facebook", "fbdownload"],
     react: "✅",
     desc: "Download Facebook Video",
     category: "download",
     filename: __filename,
   },
   async (
-    danuwa,
+    chathubro,
     mek,
     m,
     {
@@ -57,24 +57,30 @@ cmd(
       const bestQualityUrl = hd || sd;
       const qualityText = hd ? "HD" : "SD";
 
-      const desc = `
-Your fb video
-👻 *Title*: ${title || "Unknown"}
-👻 *Quality*: ${qualityText}
-`;
+     let desc = `╭───────────────◆
+    │   🎥 *FACEBOOK DOWNLOADER* 🎥
+    ├───────────────◆
+    │ 📌 *Title:* ${title || "Unknown"}
+    │ 💎 *Quality:* ${qualityText}
+    │ 🚀 *Status:* Success
+    └───────────────◆
+    
+    > 📥 *Downloading your video... Please wait!* ⏳
+    
+    > *© 2026 | Powered by Chathunga Bimsara*`;
 
-      await danuwa.sendMessage(
+      await chathubro.sendMessage(
         from,
         {
           image: {
-            url: "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/fbdownloader.png?raw=true",
+            url: "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-FB-Download.png?raw=true",
           },
           caption: desc,
         },
         { quoted: mek }
       );
 
-      await danuwa.sendMessage(
+      await chathubro.sendMessage(
         from,
         {
           video: { url: bestQualityUrl },
@@ -83,7 +89,7 @@ Your fb video
         { quoted: mek }
       );
 
-      return reply("Thank you for using DANUWA-MD");
+      return reply("Thank you for using Chathunga-Dev");
     } catch (e) {
       console.error(e);
       reply(`*Error:* ${e.message || e}`);
