@@ -89,7 +89,7 @@ async function connectToWA() {
     } else if (connection === 'open') {
       console.log('✅ Chathunga-Dev connected to WhatsApp');
 
-      const up = `Chathunga-Dev Connected ✅\n\nPREFIX: ${prefix}`;
+      const up = `Chathunga-Dev Connected ✅`;
       await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
         image: { url: `https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot.png?raw=true` },
         caption: up
