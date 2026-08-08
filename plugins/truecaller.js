@@ -29,18 +29,18 @@ cmd(
 
       await reply("🔍 *Searching Truecaller database... Please wait!*");
 
-      const response = await axios.get(`https://api.siputzx.my.id/api/tools/truecaller?phone=${number}`).catch(() => null);
+      const response = await axios.get(`https://deliriussapi-oficial.vercel.app/tools/truecaller?number=${number}`).catch(() => null);
 
-      if (!response || !response.data || (!response.data.status && !response.data.data)) {
-        return reply("❌ *Could not find any details for this number. The number might not be registered on Truecaller.*");
+      if (!response || !response.data) {
+        return reply("❌ *Could not find any details for this number.*");
       }
 
-      const data = response.data.data || response.data;
+      const resData = response.data.data || response.data.result || response.data;
       
-      let name = data.name || data.display_name || "Unknown";
-      let carrier = data.carrier || "Unknown";
-      let country = data.country || "Sri Lanka";
-      let email = data.email || "Not Available";
+      let name = resData.name || resData.display_name || resData.callerName || "Unknown";
+      let carrier = resData.carrier || resData.sim || "Unknown";
+      let country = resData.country || resData.countryCode || "Sri Lanka";
+      let email = resData.email || "Not Available";
 
       let desc = `╭───────────────◆
 │   🔍 *TRUECALLER SEARCH* 🔍
