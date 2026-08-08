@@ -9,7 +9,7 @@
     "restart": "pm2 restart Chathunga-Dev"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.6.0",
+    "@whiskeysockets/baileys": "^6.7.24",
     "api-dylux": "^1.8.6",
     "axios": "^1.19.0",
     "browser-id3-writer": "^6.3.1",
