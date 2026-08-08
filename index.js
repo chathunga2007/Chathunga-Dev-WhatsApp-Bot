@@ -26,7 +26,7 @@ const { commands, replyHandlers } = require('./command');
 const app = express();
 const port = process.env.PORT || 8000;
 
-const prefix = '';
+const prefix = '.';
 const ownerNumber = ['94767945968'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
