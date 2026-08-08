@@ -5,13 +5,14 @@ const { ytmp3 } = require("@vreden/youtube_scraper");
 cmd(
   {
     pattern: "song",
+    alias: ["songdownload", "download song"],
     react: "🎶",
     desc: "Download Song",
     category: "download",
     filename: __filename,
   },
   async (
-    danuwa,
+    chathubro,
     mek,
     m,
     {
@@ -46,16 +47,19 @@ cmd(
       const data = search.videos[0];
       const url = data.url;
 
-      let desc = `
-Song downloader
-🎬 *Title:* ${data.title}
-⏱️ *Duration:* ${data.timestamp}
-📅 *Uploaded:* ${data.ago}
-👀 *Views:* ${data.views.toLocaleString()}
-🔗 *Watch Here:* ${data.url}
-`;
+      let desc = `╭───────────────◆
+│   🎵 *SONG DOWNLOADER* 🎵
+├───────────────◆
+│ 🎬 *Title:* ${data.title}
+│ ⏱️ *Duration:* ${data.timestamp}
+│ 📅 *Uploaded:* ${data.ago}
+│ 👀 *Views:* ${data.views.toLocaleString()}
+│ 🔗 *Link:* ${data.url}
+└───────────────◆
 
-      await danuwa.sendMessage(
+> *© Powered by Chathunga Bimsara*`;
+
+      await chathubro.sendMessage(
         from,
         { image: { url: data.thumbnail }, caption: desc },
         { quoted: mek }
@@ -74,7 +78,7 @@ Song downloader
         return reply("⏳ *Sorry, audio files longer than 30 minutes are not supported.*");
       }
 
-      await danuwa.sendMessage(
+      await chathubro.sendMessage(
         from,
         {
           audio: { url: songData.download.url },
@@ -83,7 +87,7 @@ Song downloader
         { quoted: mek }
       );
 
-      await danuwa.sendMessage(
+      await chathubro.sendMessage(
         from,
         {
           document: { url: songData.download.url },
