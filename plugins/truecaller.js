@@ -1,12 +1,11 @@
 const { cmd } = require("../command");
-const axios = require("axios");
 
 cmd(
   {
     pattern: "truecaller",
     alias: ["number", "true", "whois", "caller"],
     react: "🔍",
-    desc: "Check phone number details",
+    desc: "Check phone number details via WhatsApp",
     category: "tools",
     filename: __filename,
   },
@@ -22,39 +21,34 @@ cmd(
   ) => {
     try {
       if (!q) {
-        return reply("❌ *Please provide a phone number!*\n\n*Example:* `.truecaller 94767945968`");
+        return reply("❌ *Please provide a phone number!*\n\n*Example:* `.number 94767945968`");
       }
 
       const number = q.replace(/[^0-9]/g, "");
+      const jid = number + "@s.whatsapp.net";
 
-      await reply("🔍 *Searching number details... Please wait!*");
+      await reply("🔍 *Checking number details... Please wait!*");
 
-      let response = await axios.get(`https://api.popcat.xyz/truecaller?number=${number}`).catch(() => null);
+      let profileName = "Unknown";
+      let about = "Not Available";
 
-      if (!response || !response.data || response.data.error) {
-        
-        response = await axios.get(`https://deliriussapi-oficial.vercel.app/tools/truecaller?number=${number}`).catch(() => null);
-      }
+      try {
+        const nameData = await chathubro.getName(jid);
+        if (nameData) profileName = nameData;
+      } catch (err) {}
 
-      if (!response || !response.data) {
-        return reply("❌ *Could not find any details for this number. Try again later!*");
-      }
-
-      const data = response.data;
-      
-      let name = data.name || data.result?.name || "Unknown";
-      let carrier = data.carrier || data.result?.carrier || "Unknown";
-      let country = data.country || data.result?.country || "Unknown";
-      let email = data.email || data.result?.email || "Not Available";
+      try {
+        const statusData = await chathubro.fetchStatus(jid);
+        if (statusData && statusData.status) about = statusData.status;
+      } catch (err) {}
 
       let desc = `╭───────────────◆
-│   🔍 *TRUECALLER INFO* 🔍
+│   🔍 *NUMBER INFO (WHATSAPP)* 🔍
 ├───────────────◆
-│ 👤 *Name:* ${name}
+│ 👤 *Name:* ${profileName}
 │ 📞 *Number:* +${number}
-│ 🌐 *Country:* ${country}
-│ 📡 *Carrier:* ${carrier}
-│ 📧 *Email:* ${email}
+│ 💬 *About/Bio:* ${about}
+│ 🌐 *Platform:* WhatsApp Database
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
@@ -64,7 +58,7 @@ cmd(
       }, { quoted: mek });
 
     } catch (e) {
-      console.error("Truecaller Error:", e);
+      console.error("Number Info Error:", e);
       reply(`❌ *Error:* ${e.message}`);
     }
   }
