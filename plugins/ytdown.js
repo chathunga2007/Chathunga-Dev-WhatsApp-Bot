@@ -1,6 +1,6 @@
 const { cmd } = require("../command");
-const { ytmp4, tiktok } = require("sadaslk-dlcore");
 const yts = require("yt-search");
+const axios = require("axios");
 
 async function getYoutube(query) {
   const isUrl = /(youtube\.com|youtu\.be)/i.test(query);
@@ -56,19 +56,21 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
-      const data = await ytmp4(video.url, {
-        format: "mp4",
-        videoQuality: "360",
-      });
+      const apiUrl = `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`;
+      const { data } = await axios.get(apiUrl);
 
-      if (!data?.url) return reply("❌ *Failed to download video!*");
+      if (!data?.status || !data?.data?.dl) {
+        return reply("❌ *Failed to download video!*");
+      }
+
+      const downloadUrl = data.data.dl;
 
       await bot.sendMessage(
         from,
         {
-          video: { url: data.url },
+          video: { url: downloadUrl },
           mimetype: "video/mp4",
-          fileName: data.filename || `${video.title}.mp4`,
+          fileName: `${video.title}.mp4`,
           caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`,
           gifPlayback: false,
         },
@@ -97,16 +99,22 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      const data = await tiktok(q);
-      if (!data?.no_watermark)
+      const apiUrl = `https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(q)}`;
+      const { data } = await axios.get(apiUrl);
+
+      if (!data?.status || !data?.data?.nowm) {
         return reply("❌ *Failed to download TikTok video!*");
+      }
+
+      const videoUrl = data.data.nowm;
+      const title = data.data.title || "TikTok Video";
+      const author = data.data.author?.nickname || "Unknown";
 
       const caption = `╭───────────────◆
 │   🎵 *TIKTOK DOWNLOADER* 🎵
 ├───────────────◆
-│ 📌 *Title:* ${data.title || "TikTok Video"}
-│ 👤 *Author:* ${data.author || "Unknown"}
-│ ⏱ *Duration:* ${data.runtime || "N/A"}s
+│ 📌 *Title:* ${title}
+│ 👤 *Author:* ${author}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
@@ -114,7 +122,7 @@ cmd(
       await bot.sendMessage(
         from,
         {
-          video: { url: data.no_watermark },
+          video: { url: videoUrl },
           caption: caption,
         },
         { quoted: mek }
