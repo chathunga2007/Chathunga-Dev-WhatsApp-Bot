@@ -1,5 +1,4 @@
 const { cmd } = require("../command");
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 
 cmd(
   {
@@ -25,25 +24,10 @@ cmd(
         return reply("❌ *Please reply to a WhatsApp status to save it!*");
       }
 
-      await reply("⏳ *Downloading status... Please wait!*");
-
-      const buffer = await downloadMediaMessage(
-        quoted,
-        "buffer",
-        {},
-        { logger: console }
-      );
-
-      let mtype = quoted.mtype || "";
-      let sendType = "image";
-
-      if (mtype.includes("video") || (quoted.message && quoted.message.videoMessage)) {
-        sendType = "video";
-      }
+      await reply("⏳ *Saving status... Please wait!*");
 
       await chathubro.sendMessage(from, {
-        [sendType]: buffer,
-        caption: "✅ *Status Saved Successfully!*\n\n> *© Powered by Chathunga Bimsara*",
+        forward: quoted
       }, { quoted: mek });
 
     } catch (e) {
