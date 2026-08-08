@@ -49,12 +49,7 @@ ${formattedResults}
 
       await chathubro.sendMessage(
         from,
-        {
-          image: {
-            url: "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-YouTube-Search.png?raw=true",
-          },
-          caption,
-        },
+        { text: caption },
         { quoted: mek }
       );
     } catch (err) {
