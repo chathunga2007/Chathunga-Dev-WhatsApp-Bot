@@ -4,9 +4,7 @@
   "description": "A Powerfull WhatsApp Bot",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name Chathunga-Dev",
-    "stop": "pm2 stop Chathunga-Dev",
-    "restart": "pm2 restart Chathunga-Dev"
+    "start": "node index.js"
   },
   "dependencies": {
     "@vreden/youtube_scraper": "^1.1.3",
