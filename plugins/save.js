@@ -1,5 +1,4 @@
 const { cmd } = require("../command");
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 cmd(
   {
@@ -16,42 +15,35 @@ cmd(
 
       await reply("⏳ *Saving status...*");
 
-      let qMsg = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      let msgType = Object.keys(qMsg.message || {})[0];
+      let targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
+      if (!targetObj) targetObj = mek;
 
-      if (msgType === 'ephemeralMessage') {
-        qMsg = qMsg.message.ephemeralMessage;
-        msgType = Object.keys(qMsg.message || {})[0];
-      }
-
-      const innerMsg = qMsg.message[msgType];
-      
-      if (['imageMessage', 'videoMessage'].includes(msgType)) {
-        const mediaType = msgType === 'imageMessage' ? 'image' : 'video';
-        const stream = await downloadContentFromMessage(innerMsg, mediaType);
-        
-        let buffer = Buffer.from([]);
-        for await (const chunk of stream) {
-          buffer = Buffer.concat([buffer, chunk]);
-        }
-
-        const caption = innerMsg.caption || "";
-
-        if (mediaType === 'image') {
-          await chathubro.sendMessage(from, { image: buffer, caption: caption }, { quoted: mek });
-        } else {
-          await chathubro.sendMessage(from, { video: buffer, caption: caption }, { quoted: mek });
-        }
-      } else if (msgType === 'conversation' || msgType === 'extendedTextMessage') {
-        const text = innerMsg.text || innerMsg;
-        await chathubro.sendMessage(from, { text: `📥 *Saved Status:* \n\n${text}` }, { quoted: mek });
-      } else {
-        await chathubro.sendMessage(from, { forward: qMsg }, { quoted: mek });
-      }
+      await chathubro.sendMessage(
+        from,
+        { forward: targetObj },
+        { quoted: mek }
+      );
 
       await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
     } catch (e) {
       console.error("Status Save Error:", e);
+      
+      try {
+        if (quoted && quoted.download) {
+          let media = await quoted.download();
+          let type = quoted.mtype || "image";
+          if (type.includes("image")) {
+            await chathubro.sendMessage(from, { image: media }, { quoted: mek });
+          } else if (type.includes("video")) {
+            await chathubro.sendMessage(from, { video: media }, { quoted: mek });
+          }
+          await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
+          return;
+        }
+      } catch (err) {
+        console.error("Fallback error:", err);
+      }
+
       reply("❌ *Error: Could not save status.*");
     }
   }
