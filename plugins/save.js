@@ -1,5 +1,4 @@
 const { cmd } = require("../command");
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 
 cmd(
   {
@@ -16,36 +15,28 @@ cmd(
 
       await reply("⏳ *Saving status...*");
 
-      let msg = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      if (!msg) msg = mek;
+      let targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
+      if (!targetObj) targetObj = mek;
 
-      let buffer;
-      try {
-        buffer = await downloadMediaMessage(msg, "buffer", {}, { logger: console });
-      } catch (err) {
-        if (quoted.message) {
-          buffer = await downloadMediaMessage({ key: quoted.key, message: quoted.message }, "buffer", {}, { logger: console });
-        }
-      }
-
-      if (!buffer) {
-        return reply("❌ *අපොයි! මෙම ස්ටේටස් එකේ මීඩියා ඩවුන්ලෝඩ් කරගැනීමට WhatsApp Privacy Restrict නිසා නොහැකි විය.*");
-      }
-
-      const isVideo = quoted.mtype === 'videoMessage' || (quoted.message && quoted.message.videoMessage);
-      const caption = quoted.text || quoted.caption || "📥 *Saved Status*";
-
-      if (isVideo) {
-        await chathubro.sendMessage(from, { video: buffer, caption: caption }, { quoted: mek });
-      } else {
-        await chathubro.sendMessage(from, { image: buffer, caption: caption }, { quoted: mek });
-      }
+      await chathubro.sendMessage(
+        from,
+        { 
+          forward: targetObj 
+        },
+        { quoted: mek }
+      );
 
       await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
       console.error("Status Save Error:", e);
-      reply("❌ *Error: Could not save status due to WhatsApp restrictions.*");
+      
+      try {
+        const textContent = quoted.text || quoted.caption || "Saved WhatsApp Status";
+        await chathubro.sendMessage(from, { text: `📥 *Status Content:* \n\n${textContent}` }, { quoted: mek });
+      } catch (err) {
+        reply("❌ *WhatsApp නව privacy updates නිසා මෙම ස්ටේටස් එක ඩවුන්ලෝඩ් කරගැනීමට නොහැක.*");
+      }
     }
   }
 );
