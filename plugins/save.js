@@ -1,4 +1,5 @@
 const { cmd } = require("../command");
+const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 
 cmd(
   {
@@ -15,35 +16,47 @@ cmd(
 
       await reply("⏳ *Saving status...*");
 
-      let targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      if (!targetObj) targetObj = mek;
-
-      await chathubro.sendMessage(
-        from,
-        { forward: targetObj },
-        { quoted: mek }
-      );
-
-      await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
-    } catch (e) {
-      console.error("Status Save Error:", e);
+      const targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
       
       try {
-        if (quoted && quoted.download) {
-          let media = await quoted.download();
-          let type = quoted.mtype || "image";
-          if (type.includes("image")) {
-            await chathubro.sendMessage(from, { image: media }, { quoted: mek });
-          } else if (type.includes("video")) {
-            await chathubro.sendMessage(from, { video: media }, { quoted: mek });
+        const buffer = await downloadMediaMessage(
+          targetObj,
+          "buffer",
+          {},
+          { 
+            logger: console,
+            reconnect: chathubro 
           }
-          await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
-          return;
+        );
+
+        if (!buffer) throw new Error("Buffer is empty");
+
+        const type = quoted.mtype || targetObj.mtype || "";
+        const caption = quoted.text || quoted.caption || targetObj.body || "";
+
+        if (type.includes("video") || quoted.msg?.seconds || targetObj.message?.videoMessage) {
+          await chathubro.sendMessage(from, { video: buffer, caption: caption }, { quoted: mek });
+        } else {
+          await chathubro.sendMessage(from, { image: buffer, caption: caption }, { quoted: mek });
         }
-      } catch (err) {
-        console.error("Fallback error:", err);
+
+        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        return;
+
+      } catch (innerErr) {
+        console.log("Media download fallback trying...", innerErr.message);
+        
+        await chathubro.sendMessage(
+          from,
+          { forward: targetObj },
+          { quoted: mek }
+        );
+        
+        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
       }
 
+    } catch (e) {
+      console.error("Status Save Error:", e);
       reply("❌ *Error: Could not save status.*");
     }
   }
