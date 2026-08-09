@@ -15,12 +15,16 @@ cmd(
 
       await reply("⏳ *Saving status...*");
 
-      let targetMessage = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      if (!targetMessage) targetMessage = mek;
+      let targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
+      if (!targetObj) targetObj = mek;
+
+      if (targetObj.message && targetObj.message.ephemeralMessage) {
+        targetObj = targetObj.message.ephemeralMessage;
+      }
 
       await chathubro.sendMessage(
         from,
-        { forward: targetMessage },
+        { forward: targetObj },
         { quoted: mek }
       );
       
@@ -31,6 +35,7 @@ cmd(
       try {
         const textContent = quoted.text || quoted.caption || "Saved WhatsApp Status";
         await chathubro.sendMessage(from, { text: `📥 *Status:* \n\n${textContent}` }, { quoted: mek });
+        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
       } catch (err) {
         reply("❌ *Error: Could not save status.*");
       }
