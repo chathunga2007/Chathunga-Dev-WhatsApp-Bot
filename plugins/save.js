@@ -24,40 +24,70 @@ cmd(
         return reply("❌ *Please reply to a WhatsApp status to save it!*");
       }
 
-      await reply("⏳ *Saving status... Please wait!*");
+      await reply("⏳ *Downloading status... Please wait!*");
 
-      await chathubro.sendMessage(
-        from,
-        {
-          forward: quoted,
-        },
-        { quoted: mek }
-      );
+      let mediaBuffer;
+      try {
+        mediaBuffer = await quoted.download();
+      } catch (err) {
+        mediaBuffer = await chathubro.downloadMediaMessage(quoted);
+      }
+
+      if (!mediaBuffer) {
+        return reply("❌ *Failed to download status media!*");
+      }
+
+      let mime = quoted.mtype || "";
+      let caption = quoted.text || "✨ *Saved Status by Chathunga-Dev*";
+
+      if (mime.includes("image") || quoted.msg?.mimetype?.includes("image")) {
+        await chathubro.sendMessage(
+          from,
+          {
+            image: mediaBuffer,
+            caption: caption,
+          },
+          { quoted: mek }
+        );
+      } else if (mime.includes("video") || quoted.msg?.mimetype?.includes("video")) {
+        await chathubro.sendMessage(
+          from,
+          {
+            video: mediaBuffer,
+            caption: caption,
+            mimetype: "video/mp4",
+            gifPlayback: false
+          },
+          { quoted: mek }
+        );
+      } else if (mime.includes("audio") || quoted.msg?.mimetype?.includes("audio")) {
+        await chathubro.sendMessage(
+          from,
+          {
+            audio: mediaBuffer,
+            mimetype: "audio/mp4",
+            ptt: false
+          },
+          { quoted: mek }
+        );
+      } else {
+        await chathubro.sendMessage(
+          from,
+          {
+            document: mediaBuffer,
+            mimetype: quoted.msg?.mimetype || "application/octet-stream",
+            fileName: "status_media",
+            caption: caption
+          },
+          { quoted: mek }
+        );
+      }
 
       await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
       console.error("Status Save Error:", e);
-      
-      try {
-        const media = await chathubro.downloadAndSaveMediaMessage(quoted);
-        const mime = quoted.mtype || "";
-        
-        if (mime.includes("image")) {
-          await chathubro.sendMessage(from, { image: { url: media }, caption: quoted.text || "✨ *Saved Status by Chathunga-Dev*" }, { quoted: mek });
-        } else if (mime.includes("video")) {
-          await chathubro.sendMessage(from, { video: { url: media }, caption: quoted.text || "✨ *Saved Status by Chathunga-Dev*" }, { quoted: mek });
-        } else if (mime.includes("audio")) {
-          await chathubro.sendMessage(from, { audio: { url: media }, mimetype: 'audio/mp4', ptt: true }, { quoted: mek });
-        } else {
-          await reply("❌ *Unsupported status media type!*");
-        }
-        
-        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
-      } catch (err) {
-        console.error("Backup Save Error:", err);
-        reply(`❌ *Failed to save status:* ${e.message}`);
-      }
+      reply(`❌ *Error:* ${e.message}`);
     }
   }
 );
