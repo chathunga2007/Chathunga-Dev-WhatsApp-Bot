@@ -54,22 +54,27 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
-      const apiUrl = `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`;
-      const response = await axios.get(apiUrl).catch(() => null);
+      let downloadUrl = null;
 
-      if (!response || !response.data || !response.data.status) {
-        const backupApi = `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`;
-        const backupRes = await axios.get(backupApi).catch(() => null);
-        
-        if (!backupRes || !backupRes.data) {
-          return reply("❌ *Failed to download video due to YouTube bot restrictions!*");
+      // API 1: Ryzendesu API
+      try {
+        const res1 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
+        if (res1.data && (res1.data.url || res1.data.download?.url || res1.data.result?.url)) {
+          downloadUrl = res1.data.url || res1.data.download?.url || res1.data.result?.url;
         }
-      }
-
-      const downloadUrl = response?.data?.data?.dl || response?.data?.data?.url;
+      } catch (err) {}
 
       if (!downloadUrl) {
-        return reply("❌ *Could not extract video download link!*");
+        try {
+          const res2 = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
+          if (res2.data && res2.data.status && res2.data.data?.dl) {
+            downloadUrl = res2.data.data.dl;
+          }
+        } catch (err) {}
+      }
+
+      if (!downloadUrl) {
+        return reply("❌ *Failed to download video from all servers! Please try again later.*");
       }
 
       await bot.sendMessage(
