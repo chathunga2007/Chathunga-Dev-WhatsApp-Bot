@@ -1,7 +1,7 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
 const { ytmp4 } = require("@vreden/youtube_scraper");
-const { tiktokdl } = require("api-dylux");
+const axios = require("axios");
 
 async function getYoutube(query) {
   const isUrl = /(youtube\.com|youtu\.be)/i.test(query);
@@ -85,16 +85,39 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      const res = await tiktokdl(q);
-      if (!res || !res.video) {
+      let videoUrl = null;
+      let title = "TikTok Video";
+      let author = "Unknown";
+
+      try {
+        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(q)}`);
+        if (res.data && res.data.status && res.data.data?.nowm) {
+          videoUrl = res.data.data.nowm;
+          title = res.data.data.title || title;
+          author = res.data.data.author?.nickname || author;
+        }
+      } catch (e) {}
+
+      if (!videoUrl) {
+        try {
+          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(q)}`);
+          if (res2.data && res2.data.data?.no_watermark) {
+            videoUrl = res2.data.data.no_watermark;
+            title = res2.data.data.title || title;
+            author = res2.data.data.author || author;
+          }
+        } catch (e) {}
+      }
+
+      if (!videoUrl) {
         return reply("❌ *Failed to download TikTok video!*");
       }
 
       const caption = `╭───────────────◆
 │   🎵 *TIKTOK DOWNLOADER* 🎵
 ├───────────────◆
-│ 📌 *Title:* ${res.title || "TikTok Video"}
-│ 👤 *Author:* ${res.author || "Unknown"}
+│ 📌 *Title:* ${title}
+│ 👤 *Author:* ${author}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
@@ -102,7 +125,7 @@ cmd(
       await bot.sendMessage(
         from,
         {
-          video: { url: res.video },
+          video: { url: videoUrl },
           caption: caption,
         },
         { quoted: mek }
