@@ -24,25 +24,35 @@ cmd(
       if (!quoted) {
         return reply("❌ *Please reply to a WhatsApp status to save it!*");
       }
+      let mediaMsg = quoted.message ? quoted.message : quoted;
+      if (quoted.msg) mediaMsg = quoted.msg;
+
+      let type = '';
+      if (mediaMsg.imageMessage || quoted.mtype === 'imageMessage') type = 'image';
+      else if (mediaMsg.videoMessage || quoted.mtype === 'videoMessage') type = 'video';
+      else if (mediaMsg.audioMessage || quoted.mtype === 'audioMessage') type = 'audio';
+
+      if (!type) {
+        if (quoted.mtype?.includes('image')) type = 'image';
+        else if (quoted.mtype?.includes('video')) type = 'video';
+        else if (quoted.mtype?.includes('audio')) type = 'audio';
+      }
+
+      if (!type) {
+        return reply("❌ *This is not a valid media status! Please reply to an image or video status.*");
+      }
 
       await reply("⏳ *Downloading status... Please wait!*");
 
-      let mime = quoted.mtype || "";
-      let type = mime.replace(/Message/i, "").toLowerCase();
-
-      if (!['image', 'video', 'audio'].some(v => type.includes(v))) {
-        return reply("❌ *Please reply to a valid image or video status!*");
-      }
-
-      const stream = await downloadContentFromMessage(quoted.msg, type);
+      const stream = await downloadContentFromMessage(mediaMsg, type);
       let buffer = Buffer.from([]);
       for await (const chunk of stream) {
         buffer = Buffer.concat([buffer, chunk]);
       }
 
-      let caption = quoted.text || "✨ *Saved Status by Chathunga-Dev*";
+      let caption = quoted.text || quoted.caption || "✨ *Saved Status by Chathunga-Dev*";
 
-      if (type.includes("image")) {
+      if (type === 'image') {
         await chathubro.sendMessage(
           from,
           {
@@ -51,7 +61,7 @@ cmd(
           },
           { quoted: mek }
         );
-      } else if (type.includes("video")) {
+      } else if (type === 'video') {
         await chathubro.sendMessage(
           from,
           {
@@ -62,7 +72,7 @@ cmd(
           },
           { quoted: mek }
         );
-      } else if (type.includes("audio")) {
+      } else if (type === 'audio') {
         await chathubro.sendMessage(
           from,
           {
