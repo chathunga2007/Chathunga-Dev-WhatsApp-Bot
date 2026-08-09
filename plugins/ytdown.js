@@ -1,6 +1,7 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const axios = require("axios");
+const { ytmp4 } = require("@vreden/youtube_scraper");
+const { tiktokdl } = require("api-dylux");
 
 async function getYoutube(query) {
   const isUrl = /(youtube\.com|youtu\.be)/i.test(query);
@@ -18,7 +19,7 @@ cmd(
   {
     pattern: "ytmp4",
     alias: ["ytv", "video"],
-    desc: "Download YouTube MP4 by name or link",
+    desc: "Download YouTube MP4",
     category: "download",
     filename: __filename,
   },
@@ -29,7 +30,7 @@ cmd(
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
       const video = await getYoutube(q);
-      if (!video) return reply("❌ *No results found for your query!*");
+      if (!video) return reply("❌ *No results found!*");
 
       const caption = `╭───────────────◆
 │   🎬 *YOUTUBE VIDEO* 🎬
@@ -37,54 +38,27 @@ cmd(
 │ 📌 *Title:* ${video.title}
 │ 👤 *Channel:* ${video.author.name}
 │ ⏱ *Duration:* ${video.timestamp}
-│ 👀 *Views:* ${video.views.toLocaleString()}
-│ 📅 *Uploaded:* ${video.ago}
 │ 🔗 *Link:* ${video.url}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-      await bot.sendMessage(
-        from,
-        {
-          image: { url: video.thumbnail },
-          caption: caption,
-        },
-        { quoted: mek }
-      );
+      await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption }, { quoted: mek });
 
       await bot.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
-      let downloadUrl = null;
-
-      try {
-        const res = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
-        if (res.data && res.data.status && res.data.data?.dl) {
-          downloadUrl = res.data.data.dl;
-        }
-      } catch (e) {}
-
-      if (!downloadUrl) {
-        try {
-          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
-          if (res2.data && res2.data.url) {
-            downloadUrl = res2.data.url;
-          }
-        } catch (e) {}
-      }
-
-      if (!downloadUrl) {
-        return reply("❌ *Failed to download video! All download servers are currently busy.*");
+      const data = await ytmp4(video.url);
+      if (!data || !data.download || !data.download.url) {
+        return reply("❌ *Failed to download video!*");
       }
 
       await bot.sendMessage(
         from,
         {
-          video: { url: downloadUrl },
+          video: { url: data.download.url },
           mimetype: "video/mp4",
           fileName: `${video.title}.mp4`,
-          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`,
-          gifPlayback: false,
+          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`
         },
         { quoted: mek }
       );
@@ -111,39 +85,16 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      let videoUrl = null;
-      let title = "TikTok Video";
-      let author = "Unknown";
-
-      try {
-        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(q)}`);
-        if (res.data && res.data.status && res.data.data?.nowm) {
-          videoUrl = res.data.data.nowm;
-          title = res.data.data.title || title;
-          author = res.data.data.author?.nickname || author;
-        }
-      } catch (e) {}
-
-      if (!videoUrl) {
-        try {
-          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(q)}`);
-          if (res2.data && res2.data.data?.no_watermark) {
-            videoUrl = res2.data.data.no_watermark;
-            title = res2.data.data.title || title;
-            author = res2.data.data.author || author;
-          }
-        } catch (e) {}
-      }
-
-      if (!videoUrl) {
+      const res = await tiktokdl(q);
+      if (!res || !res.video) {
         return reply("❌ *Failed to download TikTok video!*");
       }
 
       const caption = `╭───────────────◆
 │   🎵 *TIKTOK DOWNLOADER* 🎵
 ├───────────────◆
-│ 📌 *Title:* ${title}
-│ 👤 *Author:* ${author}
+│ 📌 *Title:* ${res.title || "TikTok Video"}
+│ 👤 *Author:* ${res.author || "Unknown"}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
@@ -151,7 +102,7 @@ cmd(
       await bot.sendMessage(
         from,
         {
-          video: { url: videoUrl },
+          video: { url: res.video },
           caption: caption,
         },
         { quoted: mek }
