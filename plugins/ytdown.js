@@ -74,7 +74,7 @@ cmd(
 cmd(
   {
     pattern: "tiktok",
-    alias: ["tt", "tiktokdownlaod"],
+    alias: ["tt", "tiktokdownload"],
     desc: "Download TikTok video",
     category: "download",
     filename: __filename,
@@ -86,15 +86,14 @@ cmd(
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
       let cleanUrl = q.split("?")[0];
-
       let videoUrl = null;
       let title = "TikTok Video";
       let author = "Unknown";
 
       try {
-        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(cleanUrl)}`);
-        if (res.data && res.data.status && res.data.data?.nowm) {
-          videoUrl = res.data.data.nowm;
+        const res = await axios.get(`https://tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
+        if (res.data && res.data.code === 0 && res.data.data?.play) {
+          videoUrl = res.data.data.play;
           title = res.data.data.title || title;
           author = res.data.data.author?.nickname || author;
         }
@@ -102,17 +101,15 @@ cmd(
 
       if (!videoUrl) {
         try {
-          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(cleanUrl)}`);
-          if (res2.data && res2.data.data?.no_watermark) {
-            videoUrl = res2.data.data.no_watermark;
-            title = res2.data.data.title || title;
-            author = res2.data.data.author || author;
+          const res2 = await axios.get(`https://kaiz-apis.gleeze.com/api/tiktok?url=${encodeURIComponent(cleanUrl)}`);
+          if (res2.data && res2.data.url) {
+            videoUrl = res2.data.url;
           }
         } catch (e) {}
       }
 
       if (!videoUrl) {
-        return reply("❌ *Failed to download TikTok video!*");
+        return reply("❌ *Failed to download TikTok video! All servers are busy.*");
       }
 
       const caption = `╭───────────────◆
