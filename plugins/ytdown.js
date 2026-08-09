@@ -56,15 +56,17 @@ cmd(
 
       let downloadUrl = null;
 
+      // වෙනත් ක්‍රියාත්මක වන ප්‍රසිද්ධ API එකක් මඟින් උත්සාහ කිරීම
       try {
-        const response = await axios.get(`https://api.hermitbop.xyz/download/ytmp4?url=${encodeURIComponent(video.url)}`);
-        if (response.data && response.data.status && response.data.result?.downloadUrl) {
-          downloadUrl = response.data.result.downloadUrl;
+        const response = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
+        if (response.data && response.data.status && response.data.data?.dl) {
+          downloadUrl = response.data.data.dl;
         }
       } catch (err) {
-        console.log("Hermitbop API Error:", err.message);
+        console.log("API 1 Error:", err.message);
       }
 
+      // බැකප් එකක් ලෙස වෙනත් API එකක්
       if (!downloadUrl) {
         try {
           const response2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
@@ -72,12 +74,12 @@ cmd(
             downloadUrl = response2.data.url;
           }
         } catch (err) {
-          console.log("Ryzendesu API Error:", err.message);
+          console.log("API 2 Error:", err.message);
         }
       }
 
       if (!downloadUrl) {
-        return reply("❌ *Failed to download video! Please try again with another video.*");
+        return reply("❌ *Failed to download video! All download servers are currently down.*");
       }
 
       await bot.sendMessage(
