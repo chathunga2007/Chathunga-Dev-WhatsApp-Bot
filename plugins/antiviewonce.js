@@ -9,10 +9,15 @@ if (!fs.existsSync(tempFolder)) {
 
 function unwrapViewOnce(message) {
   if (!message) return null;
+  
   if (message.viewOnceMessage) return message.viewOnceMessage.message;
   if (message.viewOnceMessageV2) return message.viewOnceMessageV2.message;
   if (message.viewOnceMessageV2Extension) return message.viewOnceMessageV2Extension.message;
-  if (message.ephemeralMessage) return unwrapViewOnce(message.ephemeralMessage.message);
+  
+  if (message.ephemeralMessage) {
+    return unwrapViewOnce(message.ephemeralMessage.message);
+  }
+  
   return message;
 }
 
@@ -23,17 +28,29 @@ module.exports = {
     try {
       if (!mek?.message || mek.key.fromMe) return;
 
-      const msgContent = unwrapViewOnce(mek.message);
-      if (!msgContent) return;
+      const rawMessage = mek.message;
+      const unwrapped = unwrapViewOnce(rawMessage);
+      if (!unwrapped) return;
 
-      const type = Object.keys(msgContent)[0];
+      const type = Object.keys(unwrapped)[0];
       if (!type) return;
 
-      const mediaMsg = msgContent[type];
-      if (!mediaMsg || !mediaMsg.viewOnce) return;
+      const mediaMsg = unwrapped[type];
+      
+      const isViewOnce = mediaMsg?.viewOnce === true || 
+                         rawMessage.viewOnceMessage || 
+                         rawMessage.viewOnceMessageV2 || 
+                         rawMessage.viewOnceMessageV2Extension;
+
+      if (!isViewOnce || !mediaMsg) return;
 
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || from;
+
+      if (!mediaMsg.mediaKey) {
+        console.log("⚠️ View Once media key missing due to WhatsApp web restriction.");
+        return;
+      }
 
       const stream = await downloadContentFromMessage(
         mediaMsg,
