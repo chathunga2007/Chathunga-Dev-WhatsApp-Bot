@@ -74,7 +74,7 @@ cmd(
 cmd(
   {
     pattern: "tiktok",
-    alias: ["tt"],
+    alias: ["tt", "tiktokdownlaod"],
     desc: "Download TikTok video",
     category: "download",
     filename: __filename,
@@ -85,12 +85,14 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
+      let cleanUrl = q.split("?")[0];
+
       let videoUrl = null;
       let title = "TikTok Video";
       let author = "Unknown";
 
       try {
-        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(q)}`);
+        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(cleanUrl)}`);
         if (res.data && res.data.status && res.data.data?.nowm) {
           videoUrl = res.data.data.nowm;
           title = res.data.data.title || title;
@@ -100,7 +102,7 @@ cmd(
 
       if (!videoUrl) {
         try {
-          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(q)}`);
+          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(cleanUrl)}`);
           if (res2.data && res2.data.data?.no_watermark) {
             videoUrl = res2.data.data.no_watermark;
             title = res2.data.data.title || title;
