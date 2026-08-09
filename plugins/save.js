@@ -13,30 +13,24 @@ cmd(
     try {
       if (!quoted) return reply("❌ *Please reply to a WhatsApp status!*");
 
-      await reply("⏳ *Saving status...*");
+      let statusText = quoted.text || quoted.caption || mek.quoted?.msg?.caption || "No caption available";
 
-      let targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      if (!targetObj) targetObj = mek;
+      let responseText = 
+`╭━━━〔 *📥 SAVED STATUS* 〕━━━╮
+┃
+┃ 📝 *Caption / Text:* 
+┃ ${statusText}
+┃
+┃ ⚠️ *(WhatsApp privacy restrictions prevent direct media downloading)*
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
 
-      await chathubro.sendMessage(
-        from,
-        { 
-          forward: targetObj 
-        },
-        { quoted: mek }
-      );
-
+      await chathubro.sendMessage(from, { text: responseText }, { quoted: mek });
       await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
       console.error("Status Save Error:", e);
-      
-      try {
-        const textContent = quoted.text || quoted.caption || "Saved WhatsApp Status";
-        await chathubro.sendMessage(from, { text: `📥 *Status Content:* \n\n${textContent}` }, { quoted: mek });
-      } catch (err) {
-        reply("❌ *WhatsApp නව privacy updates නිසා මෙම ස්ටේටස් එක ඩවුන්ලෝඩ් කරගැනීමට නොහැක.*");
-      }
+      reply("❌ *Error: Could not process status.*");
     }
   }
 );
