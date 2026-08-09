@@ -12,21 +12,26 @@ module.exports = {
 
   onMessage: async (conn, mek) => {
     try {
-      if (!mek?.message || mek.key.fromMe) return;
+      if (!mek?.message) return;
 
       let msg = mek.message;
+      
       if (msg.ephemeralMessage) msg = msg.ephemeralMessage.message;
       if (msg.viewOnceMessageV2) msg = msg.viewOnceMessageV2.message;
+      if (msg.viewOnceMessageV2Extension) msg = msg.viewOnceMessageV2Extension.message;
       if (msg.viewOnceMessage) msg = msg.viewOnceMessage.message;
 
       const type = Object.keys(msg)[0];
       if (!['imageMessage', 'videoMessage'].includes(type)) return;
 
       const mediaMsg = msg[type];
+      
       if (!mediaMsg || !mediaMsg.viewOnce) return;
 
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || from;
+
+      console.log(`[AntiViewOnce] Detected View Once message from: ${sender}`);
 
       const stream = await downloadContentFromMessage(
         mediaMsg,
@@ -38,7 +43,10 @@ module.exports = {
         buffer = Buffer.concat([buffer, chunk]);
       }
 
-      if (!buffer.length) return;
+      if (!buffer.length) {
+        console.log("[AntiViewOnce] Error: Downloaded buffer is empty!");
+        return;
+      }
 
       const ext = type === 'imageMessage' ? '.jpg' : '.mp4';
       const filePath = path.join(tempFolder, `vo_${Date.now()}${ext}`);
