@@ -7,79 +7,116 @@ if (!fs.existsSync(tempFolder)) {
   fs.mkdirSync(tempFolder, { recursive: true });
 }
 
+const viewOnceStore = new Map();
+
+function unwrapMessage(message) {
+  if (!message) return null;
+  if (message.ephemeralMessage) return unwrapMessage(message.ephemeralMessage.message);
+  if (message.viewOnceMessageV2) return unwrapMessage(message.viewOnceMessageV2.message);
+  if (message.viewOnceMessage) return unwrapMessage(message.viewOnceMessage.message);
+  return message;
+}
+
 module.exports = {
   name: "antiviewonce",
 
   onMessage: async (conn, mek) => {
     try {
-      if (!mek?.message) return;
+      if (!mek?.message || mek.key.fromMe) return;
 
-      let msg = mek.message;
-      
-      if (msg.ephemeralMessage) msg = msg.ephemeralMessage.message;
-      if (msg.viewOnceMessageV2) msg = msg.viewOnceMessageV2.message;
-      if (msg.viewOnceMessageV2Extension) msg = msg.viewOnceMessageV2Extension.message;
-      if (msg.viewOnceMessage) msg = msg.viewOnceMessage.message;
+      const cleanMsg = unwrapMessage(mek.message);
+      if (!cleanMsg) return;
 
-      const type = Object.keys(msg)[0];
+      const type = Object.keys(cleanMsg)[0];
       if (!['imageMessage', 'videoMessage'].includes(type)) return;
 
-      const mediaMsg = msg[type];
-      
+      const mediaMsg = cleanMsg[type];
       if (!mediaMsg || !mediaMsg.viewOnce) return;
 
-      const from = mek.key.remoteJid;
-      const sender = mek.key.participant || from;
+      viewOnceStore.set(mek.key.id, {
+         mek,
+         mediaMsg,
+         type,
+         sender: mek.key.participant || mek.key.remoteJid,
+         from: mek.key.remoteJid
+      });
 
-      console.log(`[AntiViewOnce] Detected View Once message from: ${sender}`);
+      setTimeout(() => {
+        viewOnceStore.delete(mek.key.id);
+      }, 60 * 60 * 1000);
 
-      const stream = await downloadContentFromMessage(
-        mediaMsg,
-        type === 'imageMessage' ? 'image' : 'video'
-      );
+    } catch (err) {
+      console.log("AntiViewOnce store error:", err.message);
+    }
+  },
 
-      let buffer = Buffer.from([]);
-      for await (const chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk]);
-      }
+  replyHandlers: [
+    {
+      filter: (text) => {
+        const t = text.trim().toLowerCase();
+        return t === "get" || t === "vv" || t === ".get" || t === ".vv";
+      },
+      function: async (conn, mek, m, { from, reply }) => {
+        try {
+          const quotedId = mek.message?.extendedTextMessage?.contextInfo?.stanzaId;
+          if (!quotedId) return;
 
-      if (!buffer.length) {
-        console.log("[AntiViewOnce] Error: Downloaded buffer is empty!");
-        return;
-      }
+          const storedData = viewOnceStore.get(quotedId);
+          if (!storedData) {
+            return reply("❌ *මෙම View Once මැසේජ් එක මගේ ස්ටෝර් එකේ නැත, නැතහොත් කාලය ඉක්ම ගොස් ඇත!*");
+          }
 
-      const ext = type === 'imageMessage' ? '.jpg' : '.mp4';
-      const filePath = path.join(tempFolder, `vo_${Date.now()}${ext}`);
-      await fs.promises.writeFile(filePath, buffer);
+          const { mediaMsg, type, sender } = storedData;
 
-      let caption = 
-`╭━━━〔 *👁️ VIEW ONCE RECOVERED* 〕━━━╮
+          const stream = await downloadContentFromMessage(
+            mediaMsg,
+            type === 'imageMessage' ? 'image' : 'video'
+          );
+
+          let buffer = Buffer.from([]);
+          for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk]);
+          }
+
+          if (!buffer.length) {
+            return reply("❌ *අපොයි! මීඩියා ඩේටා ඩවුන්ලෝඩ් කරගැනීමට නොහැකි විය.*");
+          }
+
+          const ext = type === 'imageMessage' ? '.jpg' : '.mp4';
+          const filePath = path.join(tempFolder, `grabbed_${Date.now()}${ext}`);
+          await fs.promises.writeFile(filePath, buffer);
+
+          let caption = 
+`╭━━━〔 *👁️ GRABBED VIEW ONCE* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* @${sender.split('@')[0]}
-┃ 🕒 *Time:* ${new Date().toLocaleTimeString()}
+┃ 🕒 *Recovered Time:* ${new Date().toLocaleTimeString()}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
 
-      if (type === 'imageMessage') {
-        await conn.sendMessage(from, { 
-          image: { url: filePath }, 
-          caption: caption,
-          mentions: [sender]
-        }, { quoted: mek });
-      } else {
-        await conn.sendMessage(from, { 
-          video: { url: filePath }, 
-          caption: caption,
-          mentions: [sender]
-        }, { quoted: mek });
+          if (type === 'imageMessage') {
+            await conn.sendMessage(from, { 
+              image: { url: filePath }, 
+              caption: caption,
+              mentions: [sender]
+            }, { quoted: mek });
+          } else {
+            await conn.sendMessage(from, { 
+              video: { url: filePath }, 
+              caption: caption,
+              mentions: [sender]
+            }, { quoted: mek });
+          }
+
+          setTimeout(() => {
+            try { fs.unlinkSync(filePath); } catch {}
+          }, 10000);
+
+        } catch (err) {
+          console.log("AntiViewOnce grab error:", err.message);
+          reply("❌ *Error occurred while grabbing view once!*");
+        }
       }
-
-      setTimeout(() => {
-        try { fs.unlinkSync(filePath); } catch {}
-      }, 10000);
-
-    } catch (err) {
-      console.log("AntiViewOnce error:", err.message);
     }
-  }
+  ]
 };
