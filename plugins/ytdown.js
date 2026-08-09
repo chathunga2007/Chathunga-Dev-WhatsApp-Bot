@@ -56,25 +56,28 @@ cmd(
 
       let downloadUrl = null;
 
-      // API 1: Ryzendesu API
       try {
-        const res1 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
-        if (res1.data && (res1.data.url || res1.data.download?.url || res1.data.result?.url)) {
-          downloadUrl = res1.data.url || res1.data.download?.url || res1.data.result?.url;
+        const response = await axios.get(`https://deliriussapi-oficial.vercel.app/download/ytmp4?url=${encodeURIComponent(video.url)}`);
+        if (response.data && response.data.data) {
+          downloadUrl = response.data.data.download?.url || response.data.data.url;
         }
-      } catch (err) {}
-
-      if (!downloadUrl) {
-        try {
-          const res2 = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
-          if (res2.data && res2.data.status && res2.data.data?.dl) {
-            downloadUrl = res2.data.data.dl;
-          }
-        } catch (err) {}
+      } catch (err) {
+        console.log("API 1 Error:", err.message);
       }
 
       if (!downloadUrl) {
-        return reply("❌ *Failed to download video from all servers! Please try again later.*");
+        try {
+          const response2 = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
+          if (response2.data && response2.data.status) {
+            downloadUrl = response2.data.data.dl;
+          }
+        } catch (err) {
+          console.log("API 2 Error:", err.message);
+        }
+      }
+
+      if (!downloadUrl) {
+        return reply("❌ *Failed to download video! All download servers are currently down.*");
       }
 
       await bot.sendMessage(
@@ -92,7 +95,7 @@ cmd(
       await bot.sendMessage(from, { react: { text: "✅", key: mek.key } });
     } catch (e) {
       console.log("YTMP4 ERROR:", e);
-      reply("❌ *Error while downloading video!*");
+      reply(`❌ *Error:* ${e.message}`);
     }
   }
 );
