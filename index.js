@@ -1,7 +1,6 @@
 const thanksPlugin = require('./plugins/thanks');
 
 const {
-  
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
@@ -134,6 +133,18 @@ async function connectToWA() {
     if (!mek || !mek.message) return;
 
     mek.message = getContentType(mek.message) === 'ephemeralMessage' ? mek.message.ephemeralMessage.message : mek.message;
+
+    if (global.pluginHooks) {
+      for (const plugin of global.pluginHooks) {
+        if (plugin.onMessage) {
+          try {
+            await plugin.onMessage(chathunga_dev, mek);
+          } catch (e) {
+            console.log("onMessage error:", e);
+          }
+        }
+      }
+    }
     
     if (mek.key?.remoteJid === 'status@broadcast') {
       const senderJid = mek.key.participant || mek.key.remoteJid || "unknown@s.whatsapp.net";
@@ -141,7 +152,7 @@ async function connectToWA() {
     
       if (config.AUTO_STATUS_SEEN === "true") {
         try {
-          await conn.readMessages([mek.key]);
+          await chathunga_dev.readMessages([mek.key]);
           console.log(`[✓] Status seen: ${mek.key.id}`);
         } catch (e) {
           console.error("❌ Failed to mark status as seen:", e);
@@ -153,7 +164,7 @@ async function connectToWA() {
           const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '💜', '💙', '🌝', '🖤', '💚'];
           const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
     
-          await conn.sendMessage(mek.key.participant, {
+          await chathunga_dev.sendMessage(mek.key.participant, {
             react: {
               text: randomEmoji,
               key: mek.key,
@@ -170,7 +181,7 @@ async function connectToWA() {
         const text = mek.message.extendedTextMessage.text || "";
         if (text.trim().length > 0) {
           try {
-            await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
+            await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
               text: `📝 *Text Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${text}`,
               mentions: [mentionJid]
             });
@@ -199,7 +210,7 @@ async function connectToWA() {
           const mimetype = mediaMsg.mimetype || (msgType === "imageMessage" ? "image/jpeg" : "video/mp4");
           const captionText = mediaMsg.caption || "";
     
-          await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
+          await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
             [msgType === "imageMessage" ? "image" : "video"]: buffer,
             mimetype,
             caption: `📥 *Forwarded Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${captionText}`,
@@ -278,12 +289,12 @@ async function connectToWA() {
     }
   });
 
-  conn.ev.on('messages.update', async (updates) => {
+  chathunga_dev.ev.on('messages.update', async (updates) => {
     if (global.pluginHooks) {
       for (const plugin of global.pluginHooks) {
         if (plugin.onDelete) {
           try {
-            await plugin.onDelete(conn, updates);
+            await plugin.onDelete(chathunga_dev, updates);
           } catch (e) {
             console.log("onDelete error:", e);
           }
