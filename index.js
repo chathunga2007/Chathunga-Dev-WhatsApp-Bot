@@ -183,6 +183,16 @@ async function connectToWA() {
   chathunga_dev.ev.on('messages.delete', async (deletedData) => {
     antidelete.handleDelete(chathunga_dev, deletedData);
   });
+
+  chathunga_dev.ev.on('messages.update', async (updates) => {
+    for (let update of updates) {
+      if (update.update && update.update.message && update.update.message.protocolMessage) {
+        if (update.update.message.protocolMessage.type === 0) {
+          antidelete.handleDelete(chathunga_dev, update);
+        }
+      }
+    }
+  });
 }
 
 ensureSessionFile();
