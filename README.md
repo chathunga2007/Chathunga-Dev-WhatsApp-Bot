@@ -95,8 +95,8 @@ npm start
 You can configure the bot by creating a `config.env` file in the root directory:
 
 ```env
-SESSION_ID=2eZ03YSC#UwdC1ICGHD0bDaoDOnDaWR8tMzYQadhWVlvGZ00Z6oo
-BOT_OWNER=94767945968
+SESSION_ID=your session id
+BOT_OWNER=your whatsapp number
 ALIVE_IMG=https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot-Image.png?raw=true
 ALIVE_MSG=╔═════════════════════════╗\n║ ✨ CHATHUNGA-DEV ✨\n╚═════════════════════════╝
 AUTO_STATUS_SEEN=true
