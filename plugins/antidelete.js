@@ -25,9 +25,7 @@ module.exports = {
       const senderNumber = sender.split("@")[0];
       const isGroup = originalMessage.key.remoteJid.endsWith("@g.us");
       const groupName = isGroup ? "Group Chat" : "Private Chat";
-
-      let msgType = Object.keys(originalMessage.message)[0];
-      let msgContent = originalMessage.message;
+      const chatJid = originalMessage.key.remoteJid;
 
       let alertText = `╭───────────────◆
 │   ⚠️ *ANTI-DELETE DETECTED* ⚠️
@@ -38,14 +36,20 @@ module.exports = {
 
 > *The user deleted the message below:* 👇`;
 
-      await chathubro.sendMessage(originalMessage.key.remoteJid, {
+      await chathubro.sendMessage(chatJid, {
         text: alertText,
         mentions: [sender]
       });
 
-      await chathubro.sendMessage(originalMessage.key.remoteJid, {
-        forward: originalMessage
-      }, { quoted: originalMessage });
+      try {
+        await chathubro.sendMessage(chatJid, {
+          forward: originalMessage
+        });
+      } catch (err) {
+        await chathubro.sendMessage(chatJid, { 
+          text: "⚠️ *Could not forward directly, message object captured.*" 
+        });
+      }
 
     } catch (e) {
       console.log("Anti-delete error:", e);
