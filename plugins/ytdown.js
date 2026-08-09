@@ -57,7 +57,6 @@ cmd(
 
       let downloadUrl = null;
 
-      // 1st API: SaveTube / YMP4 Alternative
       try {
         const res = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
         if (res.data && res.data.status && res.data.data?.dl) {
@@ -65,22 +64,11 @@ cmd(
         }
       } catch (e) {}
 
-      // 2nd API: Ryzendesu Backup
       if (!downloadUrl) {
         try {
           const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
           if (res2.data && res2.data.url) {
             downloadUrl = res2.data.url;
-          }
-        } catch (e) {}
-      }
-
-      // 3rd API: Vyuh / External Backup
-      if (!downloadUrl) {
-        try {
-          const res3 = await axios.get(`https://kaiz-apis.gleeze.com/api/ytmp4?url=${encodeURIComponent(video.url)}`);
-          if (res3.data && res3.data.downloadUrl) {
-            downloadUrl = res3.data.downloadUrl;
           }
         } catch (e) {}
       }
