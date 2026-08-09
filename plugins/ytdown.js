@@ -58,7 +58,8 @@ cmd(
           video: { url: data.download.url },
           mimetype: "video/mp4",
           fileName: `${video.title}.mp4`,
-          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`
+          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`,
+          gifPlayback: false
         },
         { quoted: mek }
       );
