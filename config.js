@@ -7,6 +7,23 @@ function convertToBool(text, fault = 'true') {
 module.exports = {
 SESSION_ID: process.env.SESSION_ID || "WbBB2bRK#aiumGjXHqmSfOO03G5fWcHu1ZZKFGA645iuz30mxq-0",
 ALIVE_IMG: process.env.ALIVE_IMG || "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot-Image.png?raw=true",
-ALIVE_MSG: process.env.ALIVE_MSG || "*Hello👋 Chathunga-Dev Chat Bot Is Live Now😍*",
+ALIVE_MSG: process.env.ALIVE_MSG || `╔═════════════════════════╗
+║     ✨ *CHATHUNGA-DEV* ✨      
+╚═════════════════════════╝
+
+╭───────────────◆
+│ 👋 *Hey there! I am Online & Ready!*
+├───────────────◆
+│ 🤖 *Bot Name:* Chathunga-Dev
+│ 💻 *Platform:* Linux / Cloud Server
+│ ⚡ *Status:* Active & Stable
+│ 👤 *Owner:* Chathunga Bimsara
+│ 📞 *Contact:* 94767945968
+│ 🚀 *Speed:* Lightning Fast 
+│ 🛡 *Mode:* Public / Multi-Device
+└───────────────◆
+
+> *🔥 The Ultimate WhatsApp Bot Powered by Advanced Node.js Architecture!*
+> *© 2026 | Powered by Chathunga Bimsara*`,
 BOT_OWNER: '94767945968',
 };
