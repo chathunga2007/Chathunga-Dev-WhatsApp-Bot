@@ -9,8 +9,8 @@
     "restart": "pm2 restart Chathunga-Dev"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "@vreden/youtube_scraper": "^1.1.3",
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "@xaviabot/fb-downloader": "^1.0.5",
     "api-dylux": "^1.8.6",
     "axios": "^1.19.0",
