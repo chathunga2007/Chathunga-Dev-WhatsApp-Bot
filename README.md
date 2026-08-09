@@ -52,9 +52,6 @@ Deploy your own instance of **Chathunga-Dev WhatsApp Bot** in seconds on your fa
 ### Deploy to Heroku
 [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot)
 
-### Deploy to Koyeb
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/deploy-images.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot)
-
 ### Deploy to Render
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot)
 
