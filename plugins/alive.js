@@ -5,6 +5,7 @@ cmd({
     pattern: "hi",
     alias: ["Hello", "Hi", "HI"],
     desc: "Check bot online or no.",
+    react: "👋",
     category: "main",
     filename: __filename
 },
