@@ -16,48 +16,36 @@ cmd(
 
       await reply("⏳ *Saving status...*");
 
-      const targetObj = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
-      
+      let msg = quoted.fakeObj ? quoted.fakeObj : mek.quoted;
+      if (!msg) msg = mek;
+
+      let buffer;
       try {
-        const buffer = await downloadMediaMessage(
-          targetObj,
-          "buffer",
-          {},
-          { 
-            logger: console,
-            reconnect: chathubro 
-          }
-        );
-
-        if (!buffer) throw new Error("Buffer is empty");
-
-        const type = quoted.mtype || targetObj.mtype || "";
-        const caption = quoted.text || quoted.caption || targetObj.body || "";
-
-        if (type.includes("video") || quoted.msg?.seconds || targetObj.message?.videoMessage) {
-          await chathubro.sendMessage(from, { video: buffer, caption: caption }, { quoted: mek });
-        } else {
-          await chathubro.sendMessage(from, { image: buffer, caption: caption }, { quoted: mek });
+        buffer = await downloadMediaMessage(msg, "buffer", {}, { logger: console });
+      } catch (err) {
+        if (quoted.message) {
+          buffer = await downloadMediaMessage({ key: quoted.key, message: quoted.message }, "buffer", {}, { logger: console });
         }
-
-        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
-        return;
-
-      } catch (innerErr) {
-        console.log("Media download fallback trying...", innerErr.message);
-        
-        await chathubro.sendMessage(
-          from,
-          { forward: targetObj },
-          { quoted: mek }
-        );
-        
-        await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
       }
+
+      if (!buffer) {
+        return reply("❌ *අපොයි! මෙම ස්ටේටස් එකේ මීඩියා ඩවුන්ලෝඩ් කරගැනීමට WhatsApp Privacy Restrict නිසා නොහැකි විය.*");
+      }
+
+      const isVideo = quoted.mtype === 'videoMessage' || (quoted.message && quoted.message.videoMessage);
+      const caption = quoted.text || quoted.caption || "📥 *Saved Status*";
+
+      if (isVideo) {
+        await chathubro.sendMessage(from, { video: buffer, caption: caption }, { quoted: mek });
+      } else {
+        await chathubro.sendMessage(from, { image: buffer, caption: caption }, { quoted: mek });
+      }
+
+      await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
       console.error("Status Save Error:", e);
-      reply("❌ *Error: Could not save status.*");
+      reply("❌ *Error: Could not save status due to WhatsApp restrictions.*");
     }
   }
 );
