@@ -1,24 +1,12 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const axios = require("axios");
-
-async function getYoutube(query) {
-  const isUrl = /(youtube\.com|youtu\.be)/i.test(query);
-  if (isUrl) {
-    const id = query.split("v=")[1] || query.split("/").pop();
-    const info = await yts({ videoId: id });
-    return info;
-  }
-  const search = await yts(query);
-  if (!search.videos.length) return null;
-  return search.videos[0];
-}
+const ytdl = require("ytdl-core");
 
 cmd(
   {
     pattern: "ytmp4",
     alias: ["ytv", "video"],
-    desc: "Download YouTube MP4 by name or link",
+    desc: "Download YouTube MP4",
     category: "download",
     filename: __filename,
   },
@@ -28,8 +16,9 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      const video = await getYoutube(q);
-      if (!video) return reply("❌ *No results found for your query!*");
+      const search = await yts(q);
+      const video = search.videos[0];
+      if (!video) return reply("❌ *No results found!*");
 
       const caption = `╭───────────────◆
 │   🎬 *YOUTUBE VIDEO* 🎬
@@ -37,41 +26,24 @@ cmd(
 │ 📌 *Title:* ${video.title}
 │ 👤 *Channel:* ${video.author.name}
 │ ⏱ *Duration:* ${video.timestamp}
-│ 👀 *Views:* ${video.views.toLocaleString()}
-│ 📅 *Uploaded:* ${video.ago}
 │ 🔗 *Link:* ${video.url}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-      await bot.sendMessage(
-        from,
-        {
-          image: { url: video.thumbnail },
-          caption: caption,
-        },
-        { quoted: mek }
-      );
+      await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption }, { quoted: mek });
 
       await bot.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
-      const apiUrl = `https://deliriussapi-oficial.vercel.app/download/ytmp4?url=${encodeURIComponent(video.url)}`;
-      const { data } = await axios.get(apiUrl);
-
-      if (!data || !data.data || (!data.data.download?.url && !data.data.url)) {
-        return reply("❌ *Failed to download video!*");
-      }
-
-      const downloadUrl = data.data.download?.url || data.data.url;
+      const stream = ytdl(video.url, { quality: 'highest', filter: 'audioandvideo' });
 
       await bot.sendMessage(
         from,
         {
-          video: { url: downloadUrl },
+          video: { url: video.url },
           mimetype: "video/mp4",
           fileName: `${video.title}.mp4`,
-          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`,
-          gifPlayback: false,
+          caption: `🎬 *${video.title}*\n\n> *© 2026 | Powered by Chathunga Bimsara*`
         },
         { quoted: mek }
       );
