@@ -1,3 +1,5 @@
+const thanksPlugin = require('./plugins/thanks');
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -124,6 +126,11 @@ async function connectToWA() {
     const type = getContentType(mek.message);
     const from = mek.key.remoteJid;
     const body = type === 'conversation' ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || '';
+
+    if (thanksPlugin.thanksFilter(body)) {
+      thanksPlugin.thanksSessionReply(chathunga_dev, mek, m, { from });
+      return;
+    }
 
     const args = body.trim().split(/ +/);
     const commandName = args.shift()?.toLowerCase() || '';
