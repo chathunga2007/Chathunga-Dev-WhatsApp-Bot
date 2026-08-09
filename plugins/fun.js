@@ -1,120 +1,146 @@
-const { cmd, commands } = require('../command');
-const config = require('../config');
-const { runtime } = require('../lib/functions');
-const os = require('os');
+const { cmd } = require('../command');
+const axios = require('axios');
 
 cmd({
-    pattern: "ping",
-    alias: ["speed", "latency"],
-    desc: "Check bot response speed & latency",
-    category: "main",
-    react: "⚡",
+    pattern: "weather",
+    alias: ["climate"],
+    desc: "Get weather report for any city",
+    category: "fun",
+    react: "🌤️",
     filename: __filename
-}, async (conn, mek, m, { from, reply }) => {
-    const startTime = Date.now();
-    const msg = await reply("⚡ *Testing response speed...*");
-    const endTime = Date.now();
-    const ping = endTime - startTime;
+}, async (conn, mek, m, { from, q, reply }) => {
+    try {
+        if (!q) return reply("🌤️ *Please enter a city name!*\n\n*Example:* `.weather Colombo`");
 
-    const text = `╭━━━〔 *⚡ CHATHUNGA-DEV PING* 〕━━━╮
+        const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(q)}&units=metric&appid=060fa735373d7241434a70e30287349c`).catch(() => null);
+
+        if (!res || !res.data) {
+            return reply("❌ *City not found or weather service unavailable!*");
+        }
+
+        const data = res.data;
+        const text = `╭━━━〔 *🌤️ WEATHER REPORT* 〕━━━╮
 ┃
-┃ 🚀 *Response Latency:* \`${ping} ms\`
-┃ ⏱️ *Bot Uptime:* \`${runtime(process.uptime())}\`
-┃ 💻 *Platform:* \`${os.platform()} (${os.arch()})\`
+┃ 📍 *City:* ${data.name}, ${data.sys.country}
+┃ 🌡️ *Temperature:* ${data.main.temp}°C (Feels like ${data.main.feels_like}°C)
+┃ ☁️ *Condition:* ${data.weather[0].description}
+┃ 💧 *Humidity:* ${data.main.humidity}%
+┃ 💨 *Wind Speed:* ${data.wind.speed} m/s
+┃ 🌐 *Pressure:* ${data.main.pressure} hPa
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-    return await conn.sendMessage(from, { text }, { quoted: mek });
+        return await conn.sendMessage(from, { text }, { quoted: mek });
+    } catch (e) {
+        console.error("Weather Error:", e);
+        reply(`❌ *Weather Error:* ${e.message}`);
+    }
 });
 
 cmd({
-    pattern: "system",
-    alias: ["sysinfo", "botinfo", "stats"],
-    desc: "View detailed system performance & info",
-    category: "system",
-    react: "🖥️",
+    pattern: "joke",
+    alias: ["funny"],
+    desc: "Get a random funny joke",
+    category: "fun",
+    react: "😂",
     filename: __filename
 }, async (conn, mek, m, { from, reply }) => {
-    const totalRam = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
-    const freeRam = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
-    const usedRam = (totalRam - freeRam).toFixed(2);
-    const ramUsage = Math.round((usedRam / totalRam) * 100);
+    try {
+        const res = await axios.get("https://official-joke-api.appspot.com/random_joke").catch(() => null);
+        if (!res || !res.data) return reply("😂 *Why don't scientists trust atoms? Because they make up everything!*");
 
-    const cpus = os.cpus();
-    const cpuModel = cpus.length > 0 ? cpus[0].model : 'Unknown';
-
-    const text = `╭━━━〔 *🖥️ SYSTEM SPECIFICATIONS* 〕━━━╮
+        const text = `╭━━━〔 *😂 RANDOM JOKE* 〕━━━╮
 ┃
-┃ 🤖 *Bot Name:* Chathunga-Dev WhatsApp Bot
-┃ 👤 *Owner:* Chathunga Bimsara
-┃ ⏱️ *Uptime:* ${runtime(process.uptime())}
-┃ 🧠 *RAM Usage:* ${usedRam} GB / ${totalRam} GB (${ramUsage}%)
-┃ 💾 *Free RAM:* ${freeRam} GB
-┃ ⚙️ *CPU Model:* ${cpuModel}
-┃ 🎛️ *CPU Cores:* ${cpus.length} Cores
-┃ 🐧 *OS Platform:* ${os.type()} (${os.arch()})
-┃ 🟢 *Node.js Version:* ${process.version}
-┃ 📦 *Commands Loaded:* ${commands.length} Commands
+┃ ❓ *Setup:* ${res.data.setup}
+┃ 💡 *Punchline:* ${res.data.punchline}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-    return await conn.sendMessage(from, {
-        image: { url: config.ALIVE_IMG },
-        caption: text
-    }, { quoted: mek });
+        return await conn.sendMessage(from, { text }, { quoted: mek });
+    } catch (e) {
+        reply("😂 *Why did the computer go to the doctor? Because it had a virus!*");
+    }
 });
 
 cmd({
-    pattern: "owner",
-    alias: ["developer", "creator", "dev"],
-    desc: "Get bot owner details & contact info",
-    category: "main",
-    react: "👑",
+    pattern: "quote",
+    alias: ["motivation"],
+    desc: "Get an inspirational quote",
+    category: "fun",
+    react: "💬",
     filename: __filename
 }, async (conn, mek, m, { from, reply }) => {
-    const ownerNumber = config.BOT_OWNER || "94767945968";
-    const vcard = 'BEGIN:VCARD\n' +
-        'VERSION:3.0\n' +
-        'FN:Chathunga Bimsara\n' +
-        'ORG:Chathunga-Dev;\n' +
-        'TEL;type=CELL;type=VOICE;waid=' + ownerNumber + ':+' + ownerNumber + '\n' +
-        'END:VCARD';
+    try {
+        const res = await axios.get("https://api.quotable.io/random").catch(() => null);
+        if (!res || !res.data) {
+            return reply(`💬 *"Believe you can and you're halfway there."*\n— *Theodore Roosevelt*`);
+        }
 
-    await conn.sendMessage(from, {
-        contacts: { displayName: "Chathunga Bimsara", contacts: [{ vcard }] }
-    }, { quoted: mek });
-
-    const ownerText = `╭━━━〔 *👑 BOT CREATOR INFO* 〕━━━╮
+        const text = `╭━━━〔 *💬 DAILY MOTIVATION* 〕━━━╮
 ┃
-┃ 👤 *Owner Name:* Chathunga Bimsara
-┃ 📞 *WhatsApp:* +${ownerNumber}
-┃ 🌐 *GitHub:* github.com/chathunga2007
-┃ 🤖 *Bot Project:* Chathunga-Dev WhatsApp Bot
-┃ 🇱🇰 *Country:* Sri Lanka
+┃ 📜 *"${res.data.content}"*
+┃ 👤 *Author:* ${res.data.author}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
-> *Feel free to contact for any bot updates or inquiries!*`;
+> *© 2026 | Powered by Chathunga Bimsara*`;
 
-    return await conn.sendMessage(from, { text: ownerText }, { quoted: mek });
+        return await conn.sendMessage(from, { text }, { quoted: mek });
+    } catch (e) {
+        reply(`💬 *"Success is not final, failure is not fatal: it is the courage to continue that counts."*\n— *Winston Churchill*`);
+    }
 });
 
 cmd({
-    pattern: "restart",
-    alias: ["reboot"],
-    desc: "Restart the WhatsApp bot (Owner Only)",
-    category: "system",
-    react: "🔄",
+    pattern: "fact",
+    alias: ["randomfact"],
+    desc: "Get an interesting random fact",
+    category: "fun",
+    react: "🧠",
     filename: __filename
-}, async (conn, mek, m, { from, isOwner, reply }) => {
-    if (!isOwner) return reply("❌ *This command is restricted to the Bot Owner only!*");
+}, async (conn, mek, m, { from, reply }) => {
+    try {
+        const res = await axios.get("https://uselessfacts.jsph.pl/api/v2/facts/random").catch(() => null);
+        if (!res || !res.data) return reply("🧠 *Did you know? Honey never spoils!*");
 
-    await reply("🔄 *Restarting Chathunga-Dev WhatsApp Bot... Please wait a few seconds!*");
-    setTimeout(() => {
-        process.exit(0);
-    }, 1500);
+        const text = `╭━━━〔 *🧠 RANDOM FACT* 〕━━━╮
+┃
+┃ 💡 ${res.data.text}
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━━╯
+
+> *© 2026 | Powered by Chathunga Bimsara*`;
+
+        return await conn.sendMessage(from, { text }, { quoted: mek });
+    } catch (e) {
+        reply("🧠 *Did you know? Bananas are curved because they grow towards the sun!*");
+    }
+});
+
+cmd({
+    pattern: "flip",
+    alias: ["coinflip", "coin"],
+    desc: "Flip a coin (Heads or Tails)",
+    category: "fun",
+    react: "🪙",
+    filename: __filename
+}, async (conn, mek, m, { reply }) => {
+    const outcome = Math.random() < 0.5 ? "HEADS 🪙" : "TAILS 🪙";
+    return reply(`🪙 *Flipping a coin... Result:* **${outcome}**`);
+});
+
+cmd({
+    pattern: "roll",
+    alias: ["dice"],
+    desc: "Roll a 6-sided dice",
+    category: "fun",
+    react: "🎲",
+    filename: __filename
+}, async (conn, mek, m, { reply }) => {
+    const dice = Math.floor(Math.random() * 6) + 1;
+    return reply(`🎲 *Rolling the dice... Result:* **${dice}**`);
 });
