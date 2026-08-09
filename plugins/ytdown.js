@@ -1,6 +1,6 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const ytdl = require("ytdl-core");
+const ytdl = require("@distube/ytdl-core");
 
 cmd(
   {
