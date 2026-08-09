@@ -18,7 +18,7 @@ cmd(
   {
     pattern: "ytmp4",
     alias: ["ytv", "video"],
-    desc: "Download YouTube MP4",
+    desc: "Download YouTube MP4 by name or link",
     category: "download",
     filename: __filename,
   },
@@ -38,6 +38,7 @@ cmd(
 │ 👤 *Channel:* ${video.author.name}
 │ ⏱ *Duration:* ${video.timestamp}
 │ 👀 *Views:* ${video.views.toLocaleString()}
+│ 📅 *Uploaded:* ${video.ago}
 │ 🔗 *Link:* ${video.url}
 └───────────────◆
 
@@ -56,30 +57,36 @@ cmd(
 
       let downloadUrl = null;
 
-      // වෙනත් ක්‍රියාත්මක වන ප්‍රසිද්ධ API එකක් මඟින් උත්සාහ කිරීම
+      // 1st API: SaveTube / YMP4 Alternative
       try {
-        const response = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
-        if (response.data && response.data.status && response.data.data?.dl) {
-          downloadUrl = response.data.data.dl;
+        const res = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
+        if (res.data && res.data.status && res.data.data?.dl) {
+          downloadUrl = res.data.data.dl;
         }
-      } catch (err) {
-        console.log("API 1 Error:", err.message);
-      }
+      } catch (e) {}
 
-      // බැකප් එකක් ලෙස වෙනත් API එකක්
+      // 2nd API: Ryzendesu Backup
       if (!downloadUrl) {
         try {
-          const response2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
-          if (response2.data && response2.data.url) {
-            downloadUrl = response2.data.url;
+          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
+          if (res2.data && res2.data.url) {
+            downloadUrl = res2.data.url;
           }
-        } catch (err) {
-          console.log("API 2 Error:", err.message);
-        }
+        } catch (e) {}
+      }
+
+      // 3rd API: Vyuh / External Backup
+      if (!downloadUrl) {
+        try {
+          const res3 = await axios.get(`https://kaiz-apis.gleeze.com/api/ytmp4?url=${encodeURIComponent(video.url)}`);
+          if (res3.data && res3.data.downloadUrl) {
+            downloadUrl = res3.data.downloadUrl;
+          }
+        } catch (e) {}
       }
 
       if (!downloadUrl) {
-        return reply("❌ *Failed to download video! All download servers are currently down.*");
+        return reply("❌ *Failed to download video! All download servers are currently busy.*");
       }
 
       await bot.sendMessage(
@@ -97,7 +104,7 @@ cmd(
       await bot.sendMessage(from, { react: { text: "✅", key: mek.key } });
     } catch (e) {
       console.log("YTMP4 ERROR:", e);
-      reply(`❌ *Error:* ${e.message}`);
+      reply("❌ *Error while downloading video!*");
     }
   }
 );
@@ -105,7 +112,7 @@ cmd(
 cmd(
   {
     pattern: "tiktok",
-    alias: ["tt", "tiktokdownload"],
+    alias: ["tt"],
     desc: "Download TikTok video",
     category: "download",
     filename: __filename,
@@ -116,22 +123,33 @@ cmd(
 
       await bot.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      const apiUrl = `https://deliriussapi-oficial.vercel.app/download/tiktok?url=${encodeURIComponent(q)}`;
-      const { data } = await axios.get(apiUrl);
+      let videoUrl = null;
+      let title = "TikTok Video";
+      let author = "Unknown";
 
-      if (!data || !data.data) {
-        return reply("❌ *Failed to download TikTok video!*");
-      }
-
-      const resData = data.data;
-      const videoUrl = resData.meta?.media?.noWatermark || resData.url;
+      try {
+        const res = await axios.get(`https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(q)}`);
+        if (res.data && res.data.status && res.data.data?.nowm) {
+          videoUrl = res.data.data.nowm;
+          title = res.data.data.title || title;
+          author = res.data.data.author?.nickname || author;
+        }
+      } catch (e) {}
 
       if (!videoUrl) {
-        return reply("❌ *Could not find the video download link!*");
+        try {
+          const res2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/tiktok?url=${encodeURIComponent(q)}`);
+          if (res2.data && res2.data.data?.no_watermark) {
+            videoUrl = res2.data.data.no_watermark;
+            title = res2.data.data.title || title;
+            author = res2.data.data.author || author;
+          }
+        } catch (e) {}
       }
 
-      const title = resData.meta?.title || "TikTok Video";
-      const author = resData.author?.nickname || resData.author?.username || "Unknown";
+      if (!videoUrl) {
+        return reply("❌ *Failed to download TikTok video!*");
+      }
 
       const caption = `╭───────────────◆
 │   🎵 *TIKTOK DOWNLOADER* 🎵
