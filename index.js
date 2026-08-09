@@ -46,29 +46,65 @@ const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
 async function ensureSessionFile() {
   if (!fs.existsSync(credsPath)) {
-    if (!config.SESSION_ID) {
-      console.error('❌ SESSION_ID env variable is missing. Cannot restore session.');
+    if (!config.SESSION_ID || !config.SESSION_ID.trim()) {
+      console.error('❌ SESSION_ID environment variable is missing or empty. Cannot restore session.');
       process.exit(1);
     }
 
-    console.log("🔄 creds.json not found. Downloading session from MEGA...");
+    console.log("🔄 creds.json not found. Extracting/Downloading session...");
 
-    const sessdata = config.SESSION_ID;
-    const filer = File.fromURL(`https://mega.nz/file/${sessdata}`);
+    fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
 
-    filer.download((err, data) => {
-      if (err) {
-        console.error("❌ Failed to download session file from MEGA:", err);
-        process.exit(1);
+    let sessdata = config.SESSION_ID.trim().replace(/^["']|["']$/g, '');
+
+    if (sessdata.includes('~')) {
+      sessdata = sessdata.split('~')[1];
+    }
+
+    try {
+      if (sessdata.startsWith('{')) {
+        fs.writeFileSync(credsPath, sessdata);
+        console.log("✅ Session restored from raw JSON!");
+        setTimeout(() => connectToWA(), 1000);
+        return;
       }
+      const decoded = Buffer.from(sessdata, 'base64').toString('utf-8');
+      if (decoded.startsWith('{') && decoded.includes('noiseKey')) {
+        fs.writeFileSync(credsPath, decoded);
+        console.log("✅ Session restored from base64 string!");
+        setTimeout(() => connectToWA(), 1000);
+        return;
+      }
+    } catch (e) {
+      // Not base64/JSON, continue to Mega download
+    }
 
-      fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
-      fs.writeFileSync(credsPath, data);
-      console.log("✅ Session downloaded and saved. Restarting bot...");
-      setTimeout(() => {
-        connectToWA();
-      }, 2000);
-    });
+    try {
+      const megaUrl = sessdata.startsWith('https://mega.nz/')
+        ? sessdata
+        : `https://mega.nz/file/${sessdata}`;
+
+      console.log(`🌐 Downloading session from MEGA URL: ${megaUrl}`);
+      const filer = File.fromURL(megaUrl);
+
+      filer.download((err, data) => {
+        if (err) {
+          console.error("❌ Failed to download session file from MEGA:", err);
+          console.error("💡 Please check if your SESSION_ID is correct and valid!");
+          process.exit(1);
+        }
+
+        fs.writeFileSync(credsPath, data);
+        console.log("✅ Session downloaded and saved successfully! Connecting to WhatsApp...");
+        setTimeout(() => {
+          connectToWA();
+        }, 1500);
+      });
+    } catch (err) {
+      console.error("❌ Error parsing SESSION_ID or MEGA URL:", err.message);
+      console.error("💡 Please verify your SESSION_ID format in Railway environment variables.");
+      process.exit(1);
+    }
   } else {
     setTimeout(() => {
       connectToWA();
