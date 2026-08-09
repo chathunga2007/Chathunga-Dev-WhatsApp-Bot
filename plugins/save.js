@@ -1,5 +1,4 @@
 const { cmd } = require("../command");
-const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 cmd(
   {
@@ -24,61 +23,59 @@ cmd(
       if (!quoted) {
         return reply("❌ *Please reply to a WhatsApp status to save it!*");
       }
-      let mediaMsg = quoted.message ? quoted.message : quoted;
-      if (quoted.msg) mediaMsg = quoted.msg;
-
-      let type = '';
-      if (mediaMsg.imageMessage || quoted.mtype === 'imageMessage') type = 'image';
-      else if (mediaMsg.videoMessage || quoted.mtype === 'videoMessage') type = 'video';
-      else if (mediaMsg.audioMessage || quoted.mtype === 'audioMessage') type = 'audio';
-
-      if (!type) {
-        if (quoted.mtype?.includes('image')) type = 'image';
-        else if (quoted.mtype?.includes('video')) type = 'video';
-        else if (quoted.mtype?.includes('audio')) type = 'audio';
-      }
-
-      if (!type) {
-        return reply("❌ *This is not a valid media status! Please reply to an image or video status.*");
-      }
 
       await reply("⏳ *Downloading status... Please wait!*");
 
-      const stream = await downloadContentFromMessage(mediaMsg, type);
-      let buffer = Buffer.from([]);
-      for await (const chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk]);
+      let mediaPath;
+      try {
+        mediaPath = await chathubro.downloadAndSaveMediaMessage(quoted);
+      } catch (err) {
+        console.log("Download Error 1:", err);
       }
 
+      if (!mediaPath) {
+        try {
+          const stream = await quoted.download();
+        } catch (err2) {
+          console.log("Download Error 2:", err2);
+        }
+      }
+
+      if (!mediaPath) {
+        return reply("❌ *Failed to download status! Please make sure you are replying directly to an image or video status.*");
+      }
+
+      let mime = quoted.mtype || quoted.msg?.mimetype || "";
       let caption = quoted.text || quoted.caption || "✨ *Saved Status by Chathunga-Dev*";
 
-      if (type === 'image') {
+      if (mime.includes("image") || quoted.msg?.imageMessage) {
         await chathubro.sendMessage(
           from,
           {
-            image: buffer,
+            image: { url: mediaPath },
             caption: caption,
           },
           { quoted: mek }
         );
-      } else if (type === 'video') {
+      } else if (mime.includes("video") || quoted.msg?.videoMessage) {
         await chathubro.sendMessage(
           from,
           {
-            video: buffer,
+            video: { url: mediaPath },
             caption: caption,
             mimetype: "video/mp4",
             gifPlayback: false
           },
           { quoted: mek }
         );
-      } else if (type === 'audio') {
+      } else {
         await chathubro.sendMessage(
           from,
           {
-            audio: buffer,
-            mimetype: 'audio/mp4',
-            ptt: false
+            document: { url: mediaPath },
+            mimetype: mime || "application/octet-stream",
+            fileName: "status_media",
+            caption: caption
           },
           { quoted: mek }
         );
@@ -88,7 +85,7 @@ cmd(
 
     } catch (e) {
       console.error("Status Save Error:", e);
-      reply(`❌ *Failed to download status media:* ${e.message}`);
+      reply(`❌ *Error:* ${e.message}`);
     }
   }
 );
