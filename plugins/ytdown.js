@@ -57,27 +57,27 @@ cmd(
       let downloadUrl = null;
 
       try {
-        const response = await axios.get(`https://deliriussapi-oficial.vercel.app/download/ytmp4?url=${encodeURIComponent(video.url)}`);
-        if (response.data && response.data.data) {
-          downloadUrl = response.data.data.download?.url || response.data.data.url;
+        const response = await axios.get(`https://api.hermitbop.xyz/download/ytmp4?url=${encodeURIComponent(video.url)}`);
+        if (response.data && response.data.status && response.data.result?.downloadUrl) {
+          downloadUrl = response.data.result.downloadUrl;
         }
       } catch (err) {
-        console.log("API 1 Error:", err.message);
+        console.log("Hermitbop API Error:", err.message);
       }
 
       if (!downloadUrl) {
         try {
-          const response2 = await axios.get(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(video.url)}`);
-          if (response2.data && response2.data.status) {
-            downloadUrl = response2.data.data.dl;
+          const response2 = await axios.get(`https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(video.url)}`);
+          if (response2.data && response2.data.url) {
+            downloadUrl = response2.data.url;
           }
         } catch (err) {
-          console.log("API 2 Error:", err.message);
+          console.log("Ryzendesu API Error:", err.message);
         }
       }
 
       if (!downloadUrl) {
-        return reply("❌ *Failed to download video! All download servers are currently down.*");
+        return reply("❌ *Failed to download video! Please try again with another video.*");
       }
 
       await bot.sendMessage(
