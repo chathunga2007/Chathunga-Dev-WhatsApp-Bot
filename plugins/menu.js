@@ -1,47 +1,88 @@
 const { cmd, commands } = require("../command");
+const fs = require("fs");
+const path = require("path");
 
-cmd(
-  {
-    pattern: "menu",
-    desc: "Displays all available commands",
-    category: "main",
-    filename: __filename,
-  },
-  async (
-    chathunga_dev,
-    mek,
-    m,
-    {
-      from,
-      reply
-    }
-  ) => {
-    try {
-      const categories = {};
+const pendingMenu = {};
+const numberEmojis = ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"];
 
-      for (let cmdName in commands) {
-        const cmdData = commands[cmdName];
-        const cat = cmdData.category?.toLowerCase() || "other";
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push({
-          pattern: cmdData.pattern,
-          desc: cmdData.desc || "No description"
-        });
-      }
+const headerImage = "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot-Image.png?raw=true";
 
-      let menuText = "📋 *Available Commands:*\n";
+cmd({
+  pattern: "menu",
+  react: "📋",
+  desc: "Show command categories",
+  category: "main",
+  filename: __filename
+}, async (test, m, msg, { from, sender, reply }) => {
+  await test.sendMessage(from, { react: { text: "📋", key: m.key } });
 
-      for (const [cat, cmds] of Object.entries(categories)) {
-        menuText += `\n📂 *${cat.toUpperCase()}*\n`;
-        cmds.forEach(c => {
-          menuText += `- ${c.pattern} : ${c.desc}\n`;
-        });
-      }
+  const commandMap = {};
 
-      await reply(menuText.trim());
-    } catch (err) {
-      console.error(err);
-      reply("❌ Error generating menu.");
-    }
+  for (const command of commands) {
+    if (command.dontAddCommandList) continue;
+    const category = (command.category || "MISC").toUpperCase();
+    if (!commandMap[category]) commandMap[category] = [];
+    commandMap[category].push(command);
   }
-);
+
+  const categories = Object.keys(commandMap);
+
+  let menuText = `╭━━━〔 *📋 CHATHUNGA-DEV MENU* 〕━━━╮\n`;
+  menuText += `┃\n`;
+  menuText += `┃ 👋 *Hello! Please select a category* \n`;
+  menuText += `┃ *by replying with the number:* \n`;
+  menuText += `┃\n`;
+  menuText += `┣━━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+
+  categories.forEach((cat, i) => {
+    const emojiIndex = (i + 1).toString().split("").map(n => numberEmojis[n]).join("");
+    menuText += `┃ ${emojiIndex} *${cat}* 📂 \`[${commandMap[cat].length}]\`\n`;
+  });
+
+  menuText += `┣━━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+  menuText += `┃ 📌 *Reply with category number...* \n`;
+  menuText += `╰━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+  menuText += `> *© 2026 | Powered by Chathunga Bimsara*`;
+
+  await test.sendMessage(from, {
+    image: { url: headerImage },
+    caption: menuText,
+  }, { quoted: m });
+
+  pendingMenu[sender] = { step: "category", commandMap, categories };
+});
+
+cmd({
+  filter: (text, { sender }) => pendingMenu[sender] && pendingMenu[sender].step === "category" && /^[1-9][0-9]*$/.test(text.trim())
+}, async (test, m, msg, { from, body, sender, reply }) => {
+  await test.sendMessage(from, { react: { text: "✅", key: m.key } });
+
+  const { commandMap, categories } = pendingMenu[sender];
+  const index = parseInt(body.trim()) - 1;
+  if (index < 0 || index >= categories.length) return reply("❌ *Invalid selection! Please choose a valid number from the menu.*");
+
+  const selectedCategory = categories[index];
+  const cmdsInCategory = commandMap[selectedCategory];
+
+  let cmdText = `╭━━━〔 *📁 ${selectedCategory}* 〕━━━╮\n`;
+  cmdText += `┃\n`;
+  
+  cmdsInCategory.forEach(c => {
+    const patterns = [c.pattern, ...(c.alias || [])].filter(Boolean).map(p => `.${p}`);
+    cmdText += `┃ 🔸 *${patterns.join(", ")}*\n`;
+    cmdText += `┃    └ *Desc:* ${c.desc || "No description"}\n`;
+  });
+
+  cmdText += `┃\n`;
+  cmdText += `┣━━━━━━━━━━━━━━━━━━━━━━━┫\n`;
+  cmdText += `┃ 📊 *Total Commands:* \`[${cmdsInCategory.length}]\`\n`;
+  cmdText += `╰━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+  cmdText += `> *© 2026 | Powered by Chathunga Bimsara*`;
+
+  await test.sendMessage(from, {
+    image: { url: headerImage },
+    caption: cmdText,
+  }, { quoted: m });
+
+  delete pendingMenu[sender];
+});
