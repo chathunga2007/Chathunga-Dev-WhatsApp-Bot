@@ -5,7 +5,7 @@ function convertToBool(text, fault = 'true') {
     return text === fault ? true : false;
 }
 module.exports = {
-SESSION_ID: process.env.SESSION_ID || "WbBB2bRK#aiumGjXHqmSfOO03G5fWcHu1ZZKFGA645iuz30mxq-0",
+SESSION_ID: process.env.SESSION_ID || "2eZ03YSC#UwdC1ICGHD0bDaoDOnDaWR8tMzYQadhWVlvGZ00Z6oo",
 ALIVE_IMG: process.env.ALIVE_IMG || "https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot-Image.png?raw=true",
 ALIVE_MSG: process.env.ALIVE_MSG || `╔═════════════════════════╗
 ║     ✨ *CHATHUNGA-DEV* ✨      
