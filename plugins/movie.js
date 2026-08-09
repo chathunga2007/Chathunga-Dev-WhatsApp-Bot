@@ -1,5 +1,10 @@
 const { cmd } = require("../command");
-const puppeteer = require("puppeteer");
+let puppeteer;
+try {
+  puppeteer = require("puppeteer");
+} catch (e) {
+  console.log("⚠️ Puppeteer not available, movie plugin will use fallback if required.");
+}
 
 const pendingSearch = {};
 const pendingQuality = {};
@@ -20,8 +25,9 @@ function getDirectPixeldrainUrl(url) {
 }
 
 async function searchMovies(query) {
+  if (!puppeteer) throw new Error("Puppeteer is not initialized on this system.");
   const searchUrl = `https://sinhalasub.lk/?s=${encodeURIComponent(query)}&post_type=movies`;
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--single-process"] });
   const page = await browser.newPage();
   await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 30000 });
   const results = await page.$$eval(".display-item .item-box", boxes =>
@@ -47,7 +53,8 @@ async function searchMovies(query) {
 }
 
 async function getMovieMetadata(url) {
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+  if (!puppeteer) throw new Error("Puppeteer is not initialized on this system.");
+  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--single-process"] });
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
   const metadata = await page.evaluate(() => {
@@ -74,7 +81,8 @@ async function getMovieMetadata(url) {
 }
 
 async function getPixeldrainLinks(movieUrl) {
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+  if (!puppeteer) throw new Error("Puppeteer is not initialized on this system.");
+  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--single-process"] });
   const page = await browser.newPage();
   await page.goto(movieUrl, { waitUntil: "networkidle2", timeout: 30000 });
   const linksData = await page.$$eval(".link-pixeldrain tbody tr", rows =>
