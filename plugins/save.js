@@ -11,26 +11,43 @@ cmd(
   },
   async (chathubro, mek, m, { from, quoted, reply }) => {
     try {
-      if (!quoted) return reply("❌ *Please reply to a WhatsApp status!*");
+      if (!quoted) {
+        return reply("❌ *Please reply to a WhatsApp status!*");
+      }
 
-      let statusText = quoted.text || quoted.caption || mek.quoted?.msg?.caption || "No caption available";
+      await reply("⏳ *Saving status...*");
 
-      let responseText = 
-`╭━━━〔 *📥 SAVED STATUS* 〕━━━╮
-┃
-┃ 📝 *Caption / Text:* 
-┃ ${statusText}
-┃
-┃ ⚠️ *(WhatsApp privacy restrictions prevent direct media downloading)*
-┃
-╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
+      let targetChat = m.sender || from;
+      
+      await chathubro.sendMessage(
+        targetChat,
+        {
+          forward: quoted
+        },
+        { quoted: mek }
+      );
 
-      await chathubro.sendMessage(from, { text: responseText }, { quoted: mek });
       await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
-      console.error("Status Save Error:", e);
-      reply("❌ *Error: Could not process status.*");
+      console.error("STATUS SAVE ERROR:", e);
+      
+      try {
+        let media = await chathubro.downloadAndSaveMediaMessage(quoted);
+        if (media) {
+          await chathubro.sendMessage(from, { 
+            video: { url: media }, 
+            caption: "✨ *Saved by Chathunga-Dev*",
+            gifPlayback: false 
+          }, { quoted: mek });
+          await chathubro.sendMessage(from, { react: { text: "✅", key: mek.key } });
+          return;
+        }
+      } catch (err) {
+        console.log("Backup download also failed:", err);
+      }
+
+      reply("❌ *Error: WhatsApp blocks status forwarding on this bot version. Try downloading via media link.*");
     }
   }
 );
