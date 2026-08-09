@@ -34,8 +34,6 @@
     "tmp": "^0.2.3",
     "util": "^0.12.4",
     "vm": "^0.1.0",
-    "sadaslk-dlcore": "^1.0.0",
-    "@distube/ytdl-core": "^4.16.4",
     "yt-search": "^2.11.0"
   }
 }
