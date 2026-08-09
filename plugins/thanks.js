@@ -9,7 +9,7 @@ module.exports = {
     return thanksKeywords.some(keyword => text.includes(keyword));
   },
   
-  sendThanksReply: async (chathubro, mek, m, { from }) => {
+  thanksSessionReply: async (chathubro, mek, m, { from }) => {
     const thankMsg = `╭━━━〔 *✨ YOU'RE WELCOME* 〕━━━╮\n┃\n┃ 🙌 *You're most welcome, bro!* \n┃ 🚀 Always happy to help you out.\n┃ ✨ Have a great day ahead!\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━━╯\n\n> *© 2026 | Powered by Chathunga Bimsara*`;
     
     await chathubro.sendMessage(from, { text: thankMsg }, { quoted: mek });
