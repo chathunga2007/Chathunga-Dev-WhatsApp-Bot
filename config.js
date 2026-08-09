@@ -26,4 +26,6 @@ ALIVE_MSG: process.env.ALIVE_MSG || `╔═════════════�
 > *🔥 The Ultimate WhatsApp Bot Powered by Advanced Node.js Architecture!*
 > *© 2026 | Powered by Chathunga Bimsara*`,
 BOT_OWNER: '94767945968',
+AUTO_STATUS_SEEN: 'false',
+AUTO_STATUS_REACT: 'false',
 };
