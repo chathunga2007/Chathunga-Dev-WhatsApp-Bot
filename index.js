@@ -281,7 +281,7 @@ async function connectToWA() {
     const botNumber = chathunga_dev.user.id.split(':')[0];
     const pushname = mek.pushName || 'Sin Nombre';
     const isMe = botNumber.includes(senderNumber);
-    const isOwner = ownerNumber.includes(senderNumber) || isMe;
+    const isOwner = ownerNumber.includes(senderNumber) || isMe || (config.BOT_OWNER && config.BOT_OWNER.includes(senderNumber));
     const botNumber2 = await jidNormalizedUser(chathunga_dev.user.id);
 
     const groupMetadata = isGroup ? await chathunga_dev.groupMetadata(from).catch(() => {}) : '';
@@ -296,6 +296,7 @@ async function connectToWA() {
     if (isCmd) {
       const cmd = commands.find((c) => c.pattern === commandName || (c.alias && c.alias.includes(commandName)));
       if (cmd) {
+        if (cmd.pattern !== 'hi' && !isOwner) return;
         if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
         try {
           cmd.function(chathunga_dev, mek, m, {
@@ -313,6 +314,7 @@ async function connectToWA() {
     const replyText = body;
     for (const handler of replyHandlers) {
       if (handler.filter(replyText, { sender, message: mek })) {
+        if (!isOwner) break;
         try {
           await handler.function(chathunga_dev, mek, m, {
             from, quoted: mek, body: replyText, sender, reply,
