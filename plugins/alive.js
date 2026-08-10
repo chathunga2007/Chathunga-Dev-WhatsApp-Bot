@@ -16,6 +16,7 @@ async (chathunga_dev, mek, m, {
     groupAdmins, isBotAdmins, isAdmins, reply
 }) => {
     try {
+        if (mek.key && mek.key.fromMe) return;
         return await chathunga_dev.sendMessage(from, {
             image: { url: config.ALIVE_IMG },
             caption: config.ALIVE_MSG
