@@ -270,18 +270,23 @@ async function connectToWA() {
       return;
     }
 
-    const args = body.trim().split(/ +/);
+    const cleanBody = body.trim();
+    const prefixMatch = cleanBody.match(/^[\.\/#!]/);
+    const hasPrefix = Boolean(prefixMatch);
+    const rawCmd = hasPrefix ? cleanBody.slice(prefixMatch[0].length) : cleanBody;
+    const args = rawCmd.split(/ +/);
     const commandName = args.shift()?.toLowerCase() || '';
     const q = args.join(' ');
     const isCmd = Boolean(commandName);
 
     const sender = mek.key.fromMe ? chathunga_dev.user.id : (mek.key.participant || mek.key.remoteJid);
-    const senderNumber = sender.split('@')[0];
+    const senderNumber = sender ? sender.split('@')[0].split(':')[0] : '';
+    const botNumber = chathunga_dev.user.id ? chathunga_dev.user.id.split('@')[0].split(':')[0] : '';
+
     const isGroup = from.endsWith('@g.us');
-    const botNumber = chathunga_dev.user.id.split(':')[0];
     const pushname = mek.pushName || 'Sin Nombre';
-    const isMe = botNumber.includes(senderNumber);
-    const isOwner = ownerNumber.includes(senderNumber) || isMe || (config.BOT_OWNER && config.BOT_OWNER.includes(senderNumber));
+    const isMe = Boolean(mek.key.fromMe) || (senderNumber !== '' && senderNumber === botNumber);
+    const isOwner = isMe || ownerNumber.includes(senderNumber) || (config.BOT_OWNER && config.BOT_OWNER.includes(senderNumber));
     const botNumber2 = await jidNormalizedUser(chathunga_dev.user.id);
 
     const groupMetadata = isGroup ? await chathunga_dev.groupMetadata(from).catch(() => {}) : '';
