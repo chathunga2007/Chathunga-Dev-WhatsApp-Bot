@@ -9,7 +9,7 @@ if (!fs.existsSync(tempFolder)) {
 }
 
 const messageStore = new Map();
-const mediaStore = new Map(); 
+const mediaStore = new Map();
 
 const CLEANUP_TIME = 24 * 60 * 60 * 1000; // Store for 24 hours
 
@@ -111,7 +111,7 @@ module.exports = {
       setTimeout(() => {
         messageStore.delete(keyId);
         if (mediaStore.has(keyId)) {
-          try { fs.unlinkSync(mediaStore.get(keyId)); } catch {}
+          try { fs.unlinkSync(mediaStore.get(keyId)); } catch { }
           mediaStore.delete(keyId);
         }
       }, CLEANUP_TIME);
@@ -143,8 +143,8 @@ module.exports = {
       const chatType = isGroup ? "Group Chat" : "Direct DM";
       const sentTime = formatTime(stored.timestamp);
 
-      let caption = 
-`╭━━━〔 *⚠️ DELETED MESSAGE RECOVERED* 〕━━━╮
+      let caption =
+        `╭━━━〔 *⚠️ DELETED MESSAGE RECOVERED* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* @${sender.split('@')[0]}
 ┃ 💬 *Chat:* ${chatType}
@@ -190,7 +190,7 @@ module.exports = {
           msgObj.documentMessage?.caption ||
           '';
 
-        let fullText = text 
+        let fullText = text
           ? `${caption}\n\n╭━━━〔 *📝 RECOVERED TEXT* 〕━━━╮\n┃\n> ${text}\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━━╯`
           : caption;
 
