@@ -99,6 +99,10 @@ async function fetchTruecallerDetails(number) {
     {
       url: `https://api.siputzx.my.id/api/tools/truecaller?number=${number}`,
       parse: (d) => d?.data || d?.result
+    },
+    {
+      url: `https://itzpire.site/tools/truecaller?number=${number}`,
+      parse: (d) => d?.data || d?.result
     }
   ];
 
@@ -126,7 +130,7 @@ cmd(
     pattern: "truecaller",
     alias: ["number", "true", "whois", "caller", "num"],
     react: "🔍",
-    desc: "Check phone number, Truecaller & WhatsApp profile details",
+    desc: "Check phone number, Truecaller & WhatsApp profile details (Owner Only)",
     category: "tools",
     filename: __filename,
   },
@@ -139,17 +143,31 @@ cmd(
       q,
       reply,
       quoted,
+      isOwner,
     }
   ) => {
     try {
+      // 🔒 Owner-only security permission check
+      if (!isOwner) {
+        return reply("❌ *This command is restricted to the Bot Owner only!*");
+      }
+
       let rawNumber = "";
 
-      // Extract number from quoted message, mention, or input text
-      if (m && m.quoted && m.quoted.sender) {
-        rawNumber = m.quoted.sender.split("@")[0];
-      } else if (mek && mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length) {
-        rawNumber = mek.message.extendedTextMessage.contextInfo.mentionedJid[0].split("@")[0];
-      } else if (q) {
+      // Safe extraction of number from quoted message, mention, or input text
+      if (quoted && typeof quoted.sender === "string" && quoted.sender) {
+        rawNumber = quoted.sender.split("@")[0];
+      } else if (
+        mek &&
+        mek.message?.extendedTextMessage?.contextInfo?.mentionedJid &&
+        Array.isArray(mek.message.extendedTextMessage.contextInfo.mentionedJid) &&
+        mek.message.extendedTextMessage.contextInfo.mentionedJid.length > 0
+      ) {
+        const mention = mek.message.extendedTextMessage.contextInfo.mentionedJid[0];
+        if (typeof mention === "string" && mention) {
+          rawNumber = mention.split("@")[0];
+        }
+      } else if (q && typeof q === "string") {
         rawNumber = q;
       }
 
@@ -191,6 +209,24 @@ cmd(
       let profilePicUrl = null;
       let isBusiness = false;
       let businessInfo = "";
+      let waContactName = null;
+
+      try {
+        // Attempt WhatsApp contact name lookup via Baileys
+        if (quoted && quoted.pushName && quoted.pushName !== "Sin Nombre") {
+          waContactName = quoted.pushName;
+        }
+        if (!waContactName && typeof chathubro.getName === "function") {
+          const n = await chathubro.getName(jid);
+          if (n && n !== jid.split("@")[0] && !n.includes("@s.whatsapp.net")) {
+            waContactName = n;
+          }
+        }
+        if (!waContactName && chathubro.contacts && chathubro.contacts[jid]) {
+          const c = chathubro.contacts[jid];
+          waContactName = c.name || c.notify || c.vname || null;
+        }
+      } catch (err) {}
 
       try {
         const onWa = await chathubro.onWhatsApp(jid);
@@ -218,6 +254,7 @@ cmd(
             const biz = await chathubro.getBusinessProfile(jid);
             if (biz) {
               isBusiness = true;
+              if (biz.name) callerName = biz.name;
               if (biz.description) businessInfo += `\n│ 🏢 *Biz Info:* ${biz.description.trim()}`;
               if (biz.category) businessInfo += `\n│ 🏷️ *Category:* ${biz.category}`;
               if (biz.email) callerEmail = biz.email;
@@ -230,8 +267,11 @@ cmd(
         console.error("WhatsApp check error:", e);
       }
 
-      // If Truecaller did not find a name, use a helpful descriptive label
-      const finalName = callerName || (isBusiness ? "WhatsApp Business User" : "Not Publicly Listed");
+      // Final Name resolution order: Truecaller Name -> WhatsApp Contact/Profile Name -> Business Name -> Fallback Label
+      const finalName =
+        callerName ||
+        waContactName ||
+        (isBusiness ? "WhatsApp Business User" : "Not Publicly Listed");
 
       let report = `╭───────────────◆
 │   🔍 *CALLER & NUMBER LOOKUP* 🔍
