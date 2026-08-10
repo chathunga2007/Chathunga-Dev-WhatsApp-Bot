@@ -19,6 +19,10 @@
     "ALIVE_MSG": {
       "description": "Put your alive msg here.",
       "required": true
+    },
+    "BOT_OWNER": {
+      "description": "Put your WhatsApp owner phone number here (e.g. 94XXXXXXXXX).",
+      "required": false
     }   
 },
 
