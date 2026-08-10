@@ -138,8 +138,10 @@ async function ensureSessionFile() {
 }
 
 const antiDeletePlugin = require('./plugins/antidelete.js');
+const antiviewoncePlugin = require('./plugins/antiviewonce.js');
 global.pluginHooks = global.pluginHooks || [];
-global.pluginHooks.push(antiDeletePlugin);
+if (!global.pluginHooks.includes(antiDeletePlugin)) global.pluginHooks.push(antiDeletePlugin);
+if (!global.pluginHooks.includes(antiviewoncePlugin)) global.pluginHooks.push(antiviewoncePlugin);
 
 async function connectToWA() {
   console.log("Connecting Chathunga-Dev 🧬...");
