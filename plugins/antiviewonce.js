@@ -25,7 +25,13 @@ function getOwnerJid() {
   return num + "@s.whatsapp.net";
 }
 
-async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid) {
+function formatTime(timestamp) {
+  const rawSec = timestamp ? (typeof timestamp === 'object' ? timestamp.low || timestamp.toNumber() : timestamp) : Math.floor(Date.now() / 1000);
+  const date = new Date(rawSec > 1e11 ? rawSec : rawSec * 1000);
+  return date.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+}
+
+async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp) {
   const stream = await downloadContentFromMessage(mediaMsg, mediaType);
 
   let buffer = Buffer.from([]);
@@ -44,13 +50,14 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
   const senderTag = sender ? `@${sender.split('@')[0]}` : "User";
   const isGroup = chatJid && chatJid.endsWith('@g.us');
   const chatType = isGroup ? "Group Chat" : "Direct DM";
+  const sentTime = formatTime(msgTimestamp || mek?.messageTimestamp);
 
   const caption = `╭━━━〔 *👁️ VIEW ONCE RECOVERED* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* ${senderTag}
 ┃ 💬 *Chat:* ${chatType}
 ┃ 📁 *Type:* ${mediaType.toUpperCase()}
-┃ 🕒 *Time:* ${new Date().toLocaleTimeString()}
+┃ 🕒 *Sent Time:* ${sentTime}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
@@ -76,28 +83,41 @@ const antiviewoncePlugin = {
 
   onMessage: async (conn, mek) => {
     try {
-      if (!mek?.message || mek.key.fromMe) return;
+      const rawMsg = mek?.message;
+      if (!rawMsg || mek.key.fromMe) return;
 
-      const cleanMsg = unwrapMessage(mek.message);
+      const isViewOnce = Boolean(
+        rawMsg.viewOnceMessage ||
+        rawMsg.viewOnceMessageV2 ||
+        rawMsg.viewOnceMessageV2Extension ||
+        rawMsg.imageMessage?.viewOnce ||
+        rawMsg.videoMessage?.viewOnce ||
+        rawMsg.audioMessage?.viewOnce
+      );
+
+      const cleanMsg = unwrapMessage(rawMsg);
       if (!cleanMsg) return;
 
       const type = Object.keys(cleanMsg)[0];
       if (!['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) return;
 
       const mediaMsg = cleanMsg[type];
-      const isViewOnce = mediaMsg?.viewOnce || cleanMsg?.viewOnce || mek.message?.viewOnceMessageV2 || mek.message?.viewOnceMessage || mek.message?.viewOnceMessageV2Extension;
+      if (!mediaMsg) return;
 
-      if (!mediaMsg || !isViewOnce) return;
+      const isValidViewOnce = isViewOnce || Boolean(mediaMsg.viewOnce || cleanMsg.viewOnce);
+      if (!isValidViewOnce) return;
 
       const sender = mek.key.participant || mek.key.remoteJid;
       const chatJid = mek.key.remoteJid;
+      const timestamp = mek.messageTimestamp || Math.floor(Date.now() / 1000);
 
       viewOnceStore.set(mek.key.id, {
         mek,
         mediaMsg,
         type,
         sender,
-        from: chatJid
+        from: chatJid,
+        timestamp
       });
 
       setTimeout(() => {
@@ -108,7 +128,7 @@ const antiviewoncePlugin = {
       const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
       const ownerJid = getOwnerJid();
       
-      await processAndSendViewOnce(conn, mek, ownerJid, mediaMsg, mediaType, sender, chatJid);
+      await processAndSendViewOnce(conn, mek, ownerJid, mediaMsg, mediaType, sender, chatJid, timestamp);
       console.log(`[✓] View Once media from ${sender} automatically recovered and sent to Owner WhatsApp.`);
 
     } catch (err) {
@@ -145,7 +165,8 @@ cmd({
             mediaMsg,
             type,
             sender: quoted.sender || from,
-            from
+            from,
+            timestamp: quoted.messageTimestamp || mek.messageTimestamp
           };
         }
       }
@@ -158,7 +179,7 @@ cmd({
     const ownerJid = getOwnerJid();
     const mediaType = mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio';
     
-    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from);
+    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from, mediaData.timestamp);
 
     if (from !== ownerJid) {
       await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
@@ -190,7 +211,7 @@ antiviewoncePlugin.replyHandlers = [
         const ownerJid = getOwnerJid();
         const mediaType = storedData.type === 'imageMessage' ? 'image' : storedData.type === 'videoMessage' ? 'video' : 'audio';
         
-        await processAndSendViewOnce(conn, mek, ownerJid, storedData.mediaMsg, mediaType, storedData.sender, storedData.from || from);
+        await processAndSendViewOnce(conn, mek, ownerJid, storedData.mediaMsg, mediaType, storedData.sender, storedData.from || from, storedData.timestamp);
 
         if (from !== ownerJid) {
           await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
