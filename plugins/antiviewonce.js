@@ -72,7 +72,7 @@ function getOwnerJid(conn) {
   if (conn?.user?.id) {
     return jidNormalizedUser(conn.user.id);
   }
-  const num = (config.BOT_OWNER || "94767945968").replace(/[^0-9]/g, "");
+  const num = (config.BOT_OWNER || "94XXXXXXXXX").replace(/[^0-9]/g, "");
   return num + "@s.whatsapp.net";
 }
 
