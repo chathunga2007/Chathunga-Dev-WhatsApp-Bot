@@ -36,6 +36,12 @@ function getOwnerJid() {
   return num + "@s.whatsapp.net";
 }
 
+function formatTime(timestamp) {
+  const rawSec = timestamp ? (typeof timestamp === 'object' ? timestamp.low || timestamp.toNumber() : timestamp) : Math.floor(Date.now() / 1000);
+  const date = new Date(rawSec > 1e11 ? rawSec : rawSec * 1000);
+  return date.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+}
+
 function getExtension(type, msg) {
   switch (type) {
     case 'imageMessage': return '.jpg';
@@ -66,7 +72,8 @@ module.exports = {
     messageStore.set(keyId, {
       key: msg.key,
       message: cleanMessage,
-      remoteJid
+      remoteJid,
+      timestamp: msg.messageTimestamp || Math.floor(Date.now() / 1000)
     });
 
     const type = Object.keys(cleanMessage)[0];
@@ -134,13 +141,14 @@ module.exports = {
       const ownerJid = getOwnerJid();
       const isGroup = fromChat && fromChat.endsWith('@g.us');
       const chatType = isGroup ? "Group Chat" : "Direct DM";
+      const sentTime = formatTime(stored.timestamp);
 
       let caption = 
 `╭━━━〔 *⚠️ DELETED MESSAGE RECOVERED* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* @${sender.split('@')[0]}
 ┃ 💬 *Chat:* ${chatType}
-┃ 🕒 *Time:* ${new Date().toLocaleTimeString()}
+┃ 🕒 *Sent Time:* ${sentTime}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
 
