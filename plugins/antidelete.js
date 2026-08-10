@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const config = require('../config');
 
 const tempFolder = path.join(__dirname, '../temp');
 if (!fs.existsSync(tempFolder)) {
@@ -10,7 +11,7 @@ if (!fs.existsSync(tempFolder)) {
 const messageStore = new Map();
 const mediaStore = new Map(); 
 
-const CLEANUP_TIME = 10 * 60 * 1000;
+const CLEANUP_TIME = 24 * 60 * 60 * 1000; // Store for 24 hours
 
 function unwrapMessage(message) {
   if (!message) return null;
@@ -28,6 +29,11 @@ function unwrapMessage(message) {
   }
 
   return message;
+}
+
+function getOwnerJid() {
+  const num = (config.BOT_OWNER || "94767945968").replace(/[^0-9]/g, "");
+  return num + "@s.whatsapp.net";
 }
 
 function getExtension(type, msg) {
@@ -123,13 +129,17 @@ module.exports = {
       const stored = messageStore.get(keyId);
       if (!stored) continue;
 
-      const from = key.remoteJid;
-      const sender = key.participant || from;
+      const fromChat = key.remoteJid;
+      const sender = key.participant || fromChat;
+      const ownerJid = getOwnerJid();
+      const isGroup = fromChat && fromChat.endsWith('@g.us');
+      const chatType = isGroup ? "Group Chat" : "Direct DM";
 
       let caption = 
-`╭━━━〔 *⚠️ ANTI-DELETE* 〕━━━╮
+`╭━━━〔 *⚠️ DELETED MESSAGE RECOVERED* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* @${sender.split('@')[0]}
+┃ 💬 *Chat:* ${chatType}
 ┃ 🕒 *Time:* ${new Date().toLocaleTimeString()}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
@@ -140,25 +150,26 @@ module.exports = {
           const opts = { caption, mentions: [sender] };
 
           if (mediaPath.endsWith('.jpg')) {
-            await conn.sendMessage(from, { image: { url: mediaPath }, ...opts });
+            await conn.sendMessage(ownerJid, { image: { url: mediaPath }, ...opts });
           } else if (mediaPath.endsWith('.mp4')) {
-            await conn.sendMessage(from, { video: { url: mediaPath }, ...opts });
+            await conn.sendMessage(ownerJid, { video: { url: mediaPath }, ...opts });
           } else if (mediaPath.endsWith('.webp')) {
-            await conn.sendMessage(from, { sticker: { url: mediaPath } });
-            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+            await conn.sendMessage(ownerJid, { sticker: { url: mediaPath } });
+            await conn.sendMessage(ownerJid, { text: caption, mentions: [sender] });
           } else if (mediaPath.endsWith('.ogg')) {
-            await conn.sendMessage(from, {
+            await conn.sendMessage(ownerJid, {
               audio: { url: mediaPath },
               mimetype: 'audio/ogg; codecs=opus'
             });
-            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+            await conn.sendMessage(ownerJid, { text: caption, mentions: [sender] });
           } else {
-            await conn.sendMessage(from, {
+            await conn.sendMessage(ownerJid, {
               document: { url: mediaPath },
               ...opts
             });
           }
 
+          console.log(`[✓] Deleted media message from ${sender} recovered and sent to Owner WhatsApp.`);
           continue;
         }
 
@@ -175,10 +186,12 @@ module.exports = {
           ? `${caption}\n\n╭━━━〔 *📝 RECOVERED TEXT* 〕━━━╮\n┃\n> ${text}\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━━╯`
           : caption;
 
-        await conn.sendMessage(from, {
+        await conn.sendMessage(ownerJid, {
           text: fullText,
           mentions: [sender]
         });
+
+        console.log(`[✓] Deleted text message from ${sender} recovered and sent to Owner WhatsApp.`);
 
       } catch (err) {
         console.log('❌ AntiDelete resend error:', err.message);
