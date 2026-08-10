@@ -252,7 +252,8 @@ async function connectToWA() {
     if (isCmd) {
       const cmd = commands.find((c) => c.pattern === commandName || (c.alias && c.alias.includes(commandName)));
       if (cmd) {
-        if (cmd.pattern !== 'hi' && !isOwner) return;
+        const publicCommands = ['hi', 'ai', 'owner', 'system', 'ping'];
+        if (!publicCommands.includes(cmd.pattern) && !isOwner) return;
         if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
         try {
           cmd.function(chathunga_dev, mek, m, {
