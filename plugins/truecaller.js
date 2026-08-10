@@ -154,10 +154,12 @@ cmd(
 
       let rawNumber = "";
 
-      // Safe extraction of number from quoted message, mention, or input text
-      if (quoted && typeof quoted.sender === "string" && quoted.sender) {
-        rawNumber = quoted.sender.split("@")[0];
-      } else if (
+      // 🎯 Priority 1: Use explicitly typed number in query `q` first!
+      if (q && typeof q === "string" && q.trim().length > 0) {
+        rawNumber = q.trim();
+      }
+      // 🎯 Priority 2: Use mentioned user (@user) if any
+      else if (
         mek &&
         mek.message?.extendedTextMessage?.contextInfo?.mentionedJid &&
         Array.isArray(mek.message.extendedTextMessage.contextInfo.mentionedJid) &&
@@ -167,8 +169,10 @@ cmd(
         if (typeof mention === "string" && mention) {
           rawNumber = mention.split("@")[0];
         }
-      } else if (q && typeof q === "string") {
-        rawNumber = q;
+      }
+      // 🎯 Priority 3: Use quoted message sender if replying without input text
+      else if (quoted && typeof quoted.sender === "string" && quoted.sender) {
+        rawNumber = quoted.sender.split("@")[0];
       }
 
       rawNumber = rawNumber.replace(/[^0-9]/g, "");
@@ -212,11 +216,8 @@ cmd(
       let waContactName = null;
 
       try {
-        // Attempt WhatsApp contact name lookup via Baileys
-        if (quoted && quoted.pushName && quoted.pushName !== "Sin Nombre") {
-          waContactName = quoted.pushName;
-        }
-        if (!waContactName && typeof chathubro.getName === "function") {
+        // Fetch contact/profile name of the specific searched number
+        if (typeof chathubro.getName === "function") {
           const n = await chathubro.getName(jid);
           if (n && n !== jid.split("@")[0] && !n.includes("@s.whatsapp.net")) {
             waContactName = n;
@@ -233,7 +234,7 @@ cmd(
         if (onWa && onWa.length > 0 && onWa[0].exists) {
           isWhatsApp = "✅ Registered on WhatsApp";
 
-          // Fetch WhatsApp Bio status
+          // Fetch WhatsApp Bio status of searched target
           try {
             const statusObj = await chathubro.fetchStatus(jid);
             if (statusObj && statusObj.status) {
@@ -244,7 +245,7 @@ cmd(
             }
           } catch (err) {}
 
-          // Fetch Profile Picture URL
+          // Fetch Profile Picture URL of searched target
           try {
             profilePicUrl = await chathubro.profilePictureUrl(jid, "image");
           } catch (err) {}
@@ -267,7 +268,7 @@ cmd(
         console.error("WhatsApp check error:", e);
       }
 
-      // Final Name resolution order: Truecaller Name -> WhatsApp Contact/Profile Name -> Business Name -> Fallback Label
+      // Final Name resolution order: Truecaller Name -> WhatsApp Contact Name -> Business Name -> Fallback Label
       const finalName =
         callerName ||
         waContactName ||
