@@ -6,6 +6,12 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
+let ffmpegPath = 'ffmpeg';
+try {
+    const staticFfmpeg = require('ffmpeg-static');
+    if (staticFfmpeg) ffmpegPath = staticFfmpeg;
+} catch (e) {}
+
 const tempDir = path.join(__dirname, '../temp');
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
@@ -37,8 +43,8 @@ cmd({
 
         const isVideo = mime.includes('video');
         const ffmpegCmd = isVideo
-            ? `ffmpeg -i "${inputPath}" -vcodec libwebp -filter:v "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,fps=15,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -lossless 0 -compression_level 6 -q:v 50 -loop 0 -preset default -an -vsync 0 "${outputPath}"`
-            : `ffmpeg -i "${inputPath}" -vf "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -vcodec libwebp "${outputPath}"`;
+            ? `"${ffmpegPath}" -i "${inputPath}" -vcodec libwebp -filter:v "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,fps=15,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -lossless 0 -compression_level 6 -q:v 50 -loop 0 -preset default -an -vsync 0 "${outputPath}"`
+            : `"${ffmpegPath}" -i "${inputPath}" -vf "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -vcodec libwebp "${outputPath}"`;
 
         exec(ffmpegCmd, async (err) => {
             if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
@@ -82,7 +88,7 @@ cmd({
 
         fs.writeFileSync(inputPath, mediaBuffer);
 
-        exec(`ffmpeg -i "${inputPath}" "${outputPath}"`, async (err) => {
+        exec(`"${ffmpegPath}" -i "${inputPath}" "${outputPath}"`, async (err) => {
             if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
 
             if (err || !fs.existsSync(outputPath)) {
@@ -164,13 +170,25 @@ cmd({
         await conn.sendMessage(from, { react: { text: "🧠", key: mek.key } });
 
         let aiResponse = null;
-        
+
         try {
-            const apiRes = await axios.get(`https://api.vreden.web.id/api/ai-chat?query=${encodeURIComponent(q)}`);
-            if (apiRes.data && (apiRes.data.result || apiRes.data.response)) {
-                aiResponse = apiRes.data.result || apiRes.data.response;
+            const apiRes0 = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(q)}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                timeout: 12000
+            });
+            if (apiRes0.data && typeof apiRes0.data === 'string' && apiRes0.data.trim().length > 0) {
+                aiResponse = apiRes0.data.trim();
             }
         } catch (err) {}
+        
+        if (!aiResponse) {
+            try {
+                const apiRes = await axios.get(`https://api.vreden.web.id/api/ai-chat?query=${encodeURIComponent(q)}`, { timeout: 8000 });
+                if (apiRes.data && (apiRes.data.result || apiRes.data.response)) {
+                    aiResponse = apiRes.data.result || apiRes.data.response;
+                }
+            } catch (err) {}
+        }
 
         if (!aiResponse) {
             try {
