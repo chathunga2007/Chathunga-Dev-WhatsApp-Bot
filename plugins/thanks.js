@@ -3,8 +3,9 @@ const { cmd } = require("../command");
 const thanksKeywords = ["thank", "thanks", "tq", "thnx", "thankyou", "ස්තූතියි", "Thank you"];
 
 module.exports = {
-  thanksFilter: (body) => {
+  thanksFilter: (body, mek) => {
     if (!body) return false;
+    if (mek && mek.key && mek.key.fromMe) return false;
     const text = body.toLowerCase();
     return thanksKeywords.some(keyword => text.includes(keyword));
   },
