@@ -76,7 +76,7 @@ cmd({
     react: "👑",
     filename: __filename
 }, async (conn, mek, m, { from, reply }) => {
-    const ownerNumber = config.BOT_OWNER || "94767945968";
+    const ownerNumber = config.BOT_OWNER || "94XXXXXXXXX";
     const vcard = 'BEGIN:VCARD\n' +
         'VERSION:3.0\n' +
         'FN:Chathunga Bimsara\n' +
