@@ -69,7 +69,7 @@ setInterval(() => {
 }, 4 * 60 * 1000);
 
 const prefix = '';
-const ownerNumber = ['94767945968'];
+const ownerNumber = [config.BOT_OWNER || '94XXXXXXXXX'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
 async function ensureSessionFile() {
