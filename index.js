@@ -16,7 +16,8 @@ const {
   MessageRetryMap,
   generateForwardMessageContent,
   generateWAMessageFromContent,
-  generateMessageID, makeInMemoryStore,
+  generateMessageID,
+  makeInMemoryStore,
   jidDecode,
   fetchLatestBaileysVersion,
   Browsers
@@ -37,8 +38,35 @@ const {
 const { File } = require('megajs');
 const { commands, replyHandlers } = require('./command');
 
+// 🛡️ Process Safety Guard to prevent Railway auto-restart crash loops
+process.on('uncaughtException', (err) => {
+  console.error('🛡️ [CRASH GUARD] Uncaught Exception:', err?.stack || err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🛡️ [CRASH GUARD] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// 🌐 Express Web Server for Railway Health Check & Keep-Alive
 const app = express();
 const port = process.env.PORT || 8000;
+
+app.get('/', (req, res) => {
+  res.status(200).send("✅ Chathunga-Dev WhatsApp Bot is Online & Healthy!");
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: "OK", uptime: process.uptime() });
+});
+
+app.listen(port, () => {
+  console.log(`🌐 Server active & listening on port: ${port}`);
+});
+
+// Keep-Alive self-ping to prevent service idling
+setInterval(() => {
+  axios.get(`http://localhost:${port}/`).catch(() => {});
+}, 4 * 60 * 1000);
 
 const prefix = '';
 const ownerNumber = ['94767945968'];
@@ -47,16 +75,14 @@ const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 async function ensureSessionFile() {
   if (!fs.existsSync(credsPath)) {
     if (!config.SESSION_ID || !config.SESSION_ID.trim()) {
-      console.error('❌ SESSION_ID environment variable is missing or empty. Cannot restore session.');
-      process.exit(1);
+      console.error('❌ SESSION_ID environment variable is missing or empty! Please add SESSION_ID in Railway variables.');
+      return;
     }
 
     console.log("🔄 creds.json not found. Extracting/Downloading session...");
-
     fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
 
     let sessdata = config.SESSION_ID.trim().replace(/^["']|["']$/g, '');
-
     if (sessdata.includes('~')) {
       sessdata = sessdata.split('~')[1];
     }
@@ -76,7 +102,7 @@ async function ensureSessionFile() {
         return;
       }
     } catch (e) {
-      // Not base64/JSON, continue to Mega download
+      // Continue to Mega download if base64 decoding fails
     }
 
     try {
@@ -91,7 +117,7 @@ async function ensureSessionFile() {
         if (err) {
           console.error("❌ Failed to download session file from MEGA:", err);
           console.error("💡 Please check if your SESSION_ID is correct and valid!");
-          process.exit(1);
+          return;
         }
 
         fs.writeFileSync(credsPath, data);
@@ -103,7 +129,6 @@ async function ensureSessionFile() {
     } catch (err) {
       console.error("❌ Error parsing SESSION_ID or MEGA URL:", err.message);
       console.error("💡 Please verify your SESSION_ID format in Railway environment variables.");
-      process.exit(1);
     }
   } else {
     setTimeout(() => {
@@ -111,7 +136,6 @@ async function ensureSessionFile() {
     }, 1000);
   }
 }
-
 
 const antiDeletePlugin = require('./plugins/antidelete.js');
 global.pluginHooks = global.pluginHooks || [];
@@ -136,21 +160,39 @@ async function connectToWA() {
   chathunga_dev.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
-        connectToWA();
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+
+      console.log(`⚠️ Connection closed. Status Code: ${statusCode}. Logged out: ${isLoggedOut}`);
+
+      if (isLoggedOut) {
+        console.error("❌ WhatsApp Session is logged out or expired! Please generate a new SESSION_ID.");
+        try {
+          fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
+        } catch (e) {}
+      } else {
+        // Wait 3 seconds before reconnecting to prevent crash loops
+        console.log("🔄 Reconnecting in 3 seconds...");
+        setTimeout(() => {
+          connectToWA();
+        }, 3000);
       }
     } else if (connection === 'open') {
-      console.log('✅ Chathunga-Dev connected to WhatsApp');
+      console.log('✅ Chathunga-Dev connected to WhatsApp successfully!');
 
       const up = `Chathunga-Dev Connected ✅`;
       await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
         image: { url: `https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot.png?raw=true` },
         caption: up
-      });
+      }).catch(() => {});
 
       fs.readdirSync("./plugins/").forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() === ".js") {
-          require(`./plugins/${plugin}`);
+          try {
+            require(`./plugins/${plugin}`);
+          } catch (err) {
+            console.error(`❌ Error loading plugin ${plugin}:`, err);
+          }
         }
       });
     }
@@ -161,7 +203,7 @@ async function connectToWA() {
   chathunga_dev.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.messageStubType === 68) {
-        await chathunga_dev.sendMessageAck(msg.key);
+        await chathunga_dev.sendMessageAck(msg.key).catch(() => {});
       }
     }
 
@@ -181,7 +223,7 @@ async function connectToWA() {
         }
       }
     }
-    
+
     if (mek.key?.remoteJid === 'status@broadcast') {
       if (config.AUTO_STATUS_SEEN === "true") {
         try {
@@ -191,19 +233,19 @@ async function connectToWA() {
           console.error("❌ Failed to mark status as seen:", e);
         }
       }
-    
+
       if (config.AUTO_STATUS_REACT === "true" && mek.key.participant) {
         try {
-          const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '💜', '💙', '🌝', '🖤', '💚'];
+          const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '<ctrl42>', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '💜', '💙', '🌝', '🖤', '💚'];
           const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-    
+
           await chathunga_dev.sendMessage(mek.key.participant, {
             react: {
               text: randomEmoji,
               key: mek.key,
             }
           });
-    
+
           console.log(`[✓] Reacted to status of ${mek.key.participant} with ${randomEmoji}`);
         } catch (e) {
           console.error("❌ Failed to react to status:", e);
@@ -241,9 +283,9 @@ async function connectToWA() {
     const botNumber2 = await jidNormalizedUser(chathunga_dev.user.id);
 
     const groupMetadata = isGroup ? await chathunga_dev.groupMetadata(from).catch(() => {}) : '';
-    const groupName = isGroup ? groupMetadata.subject : '';
-    const participants = isGroup ? groupMetadata.participants : '';
-    const groupAdmins = isGroup ? await getGroupAdmins(participants) : '';
+    const groupName = isGroup ? groupMetadata?.subject || '' : '';
+    const participants = isGroup ? groupMetadata?.participants || [] : [];
+    const groupAdmins = isGroup ? await getGroupAdmins(participants) : [];
     const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
     const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
 
@@ -252,9 +294,9 @@ async function connectToWA() {
     if (isCmd) {
       const cmd = commands.find((c) => c.pattern === commandName || (c.alias && c.alias.includes(commandName)));
       if (cmd) {
-        const publicCommands = ['hi', 'ai', 'owner', 'system', 'ping'];
+        const publicCommands = ['hi', 'ai', 'owner', 'system', 'ping', 'truecaller', 'number', 'whois', 'caller', 'num'];
         if (!publicCommands.includes(cmd.pattern) && !isOwner) return;
-        if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+        if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } }).catch(() => {});
         try {
           cmd.function(chathunga_dev, mek, m, {
             from, quoted: mek, body, isCmd, command: commandName, args, q,
@@ -300,9 +342,3 @@ async function connectToWA() {
 }
 
 ensureSessionFile();
-
-app.get("/", (req, res) => {
-  res.send("Hey, Chathunga-Dev Started✅");
-});
-
-app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
