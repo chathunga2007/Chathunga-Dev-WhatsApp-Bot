@@ -22,14 +22,15 @@ ALIVE_MSG: process.env.ALIVE_MSG || `╔═════════════�
 │ 💻 *Platform:* Linux / Cloud Server
 │ ⚡ *Status:* Active & Stable
 │ 👤 *Owner:* Chathunga Bimsara
-│ 📞 *Contact:* 94767945968
+│ 📞 *Contact:* ${process.env.BOT_OWNER || '94XXXXXXXXX'}
 │ 🚀 *Speed:* Lightning Fast 
 │ 🛡 *Mode:* Public / Multi-Device
 └───────────────◆
 
 > *🔥 The Ultimate WhatsApp Bot Powered by Advanced Node.js Architecture!*
 > *© 2026 | Powered by Chathunga Bimsara*`,
-BOT_OWNER: '94767945968',
+BOT_OWNER: process.env.BOT_OWNER || '94XXXXXXXXX',
 AUTO_STATUS_SEEN: 'false',
 AUTO_STATUS_REACT: 'false',
 };
+
