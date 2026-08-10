@@ -65,7 +65,7 @@ app.listen(port, () => {
 
 // Keep-Alive self-ping to prevent service idling
 setInterval(() => {
-  axios.get(`http://localhost:${port}/`).catch(() => {});
+  axios.get(`http://localhost:${port}/`).catch(() => { });
 }, 4 * 60 * 1000);
 
 const prefix = '';
@@ -169,7 +169,7 @@ async function connectToWA() {
         console.error("❌ WhatsApp Session is logged out or expired! Please generate a new SESSION_ID.");
         try {
           fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
-        } catch (e) {}
+        } catch (e) { }
       } else {
         // Wait 3 seconds before reconnecting to prevent crash loops
         console.log("🔄 Reconnecting in 3 seconds...");
@@ -184,7 +184,7 @@ async function connectToWA() {
       await chathunga_dev.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
         image: { url: `https://github.com/chathunga2007/Chathunga-Dev-WhatsApp-Bot/blob/main/images/Chathunga-Dev-WhatsApp-Bot.png?raw=true` },
         caption: up
-      }).catch(() => {});
+      }).catch(() => { });
 
       fs.readdirSync("./plugins/").forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() === ".js") {
@@ -203,7 +203,7 @@ async function connectToWA() {
   chathunga_dev.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.messageStubType === 68) {
-        await chathunga_dev.sendMessageAck(msg.key).catch(() => {});
+        await chathunga_dev.sendMessageAck(msg.key).catch(() => { });
       }
     }
 
@@ -282,7 +282,7 @@ async function connectToWA() {
     const isOwner = isMe || ownerNumber.includes(senderNumber) || (config.BOT_OWNER && config.BOT_OWNER.includes(senderNumber));
     const botNumber2 = await jidNormalizedUser(chathunga_dev.user.id);
 
-    const groupMetadata = isGroup ? await chathunga_dev.groupMetadata(from).catch(() => {}) : '';
+    const groupMetadata = isGroup ? await chathunga_dev.groupMetadata(from).catch(() => { }) : '';
     const groupName = isGroup ? groupMetadata?.subject || '' : '';
     const participants = isGroup ? groupMetadata?.participants || [] : [];
     const groupAdmins = isGroup ? await getGroupAdmins(participants) : [];
@@ -294,9 +294,9 @@ async function connectToWA() {
     if (isCmd) {
       const cmd = commands.find((c) => c.pattern === commandName || (c.alias && c.alias.includes(commandName)));
       if (cmd) {
-        const publicCommands = ['hi', 'ai', 'owner', 'system', 'ping'];
+        const publicCommands = ["botai", 'owner', 'system', 'ping'];
         if (!publicCommands.includes(cmd.pattern) && !isOwner) return;
-        if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } }).catch(() => {});
+        if (cmd.react) chathunga_dev.sendMessage(from, { react: { text: cmd.react, key: mek.key } }).catch(() => { });
         try {
           cmd.function(chathunga_dev, mek, m, {
             from, quoted: mek, body, isCmd, command: commandName, args, q,
