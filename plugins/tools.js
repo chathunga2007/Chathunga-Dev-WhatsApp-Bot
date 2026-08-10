@@ -221,8 +221,8 @@ cmd({
 });
 
 cmd({
-    pattern: "ai",
-    alias: ["chat", "gpt", "botai", "ask"],
+    pattern: "botai",
+    alias: ["ask"],
     desc: "Ask anything from AI Assistant",
     category: "tools",
     react: "🤖",
