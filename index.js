@@ -265,7 +265,7 @@ async function connectToWA() {
     const from = mek.key.remoteJid;
     const body = type === 'conversation' ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || '';
 
-    if (thanksPlugin.thanksFilter(body)) {
+    if (!mek.key?.fromMe && thanksPlugin.thanksFilter(body, mek)) {
       thanksPlugin.thanksSessionReply(chathunga_dev, mek, m, { from });
       return;
     }
