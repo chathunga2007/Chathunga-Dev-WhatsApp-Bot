@@ -109,7 +109,7 @@ PORT=8000
 | Variable | Required | Default Value | Description |
 | :--- | :---: | :--- | :--- |
 | `SESSION_ID` | **Yes** | `MEGA_FILE_KEY` | MEGA link code for your session auth `creds.json`. |
-| `BOT_OWNER` | **Yes** | `94767945968` | Owner phone number (without `+`). |
+| `BOT_OWNER` | **Yes** | `Owner WhatsApp Number` | Owner phone number (without `+`). |
 | `ALIVE_IMG` | No | Banner Image URL | Image sent when `.alive` or `.menu` is called. |
 | `ALIVE_MSG` | No | Default Alive Text | Custom welcome/status caption. |
 | `AUTO_STATUS_SEEN` | No | `false` | Automatically view all status updates. |
