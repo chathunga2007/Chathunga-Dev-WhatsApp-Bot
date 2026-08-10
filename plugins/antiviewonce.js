@@ -1,5 +1,5 @@
 const { cmd } = require("../command");
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const config = require("../config");
 const fs = require('fs');
 const path = require('path');
@@ -12,21 +12,30 @@ if (!fs.existsSync(tempFolder)) {
 const viewOnceStore = new Map();
 const processedMsgIds = new Set();
 
-function unwrapMessage(message) {
-  if (!message) return null;
-  if (message.ephemeralMessage) return unwrapMessage(message.ephemeralMessage.message);
-  if (message.viewOnceMessageV2) return unwrapMessage(message.viewOnceMessageV2.message);
-  if (message.viewOnceMessageV2Extension) return unwrapMessage(message.viewOnceMessageV2Extension.message);
-  if (message.viewOnceMessage) return unwrapMessage(message.viewOnceMessage.message);
-  if (message.documentWithCaptionMessage) return unwrapMessage(message.documentWithCaptionMessage.message);
-  return message;
+function unwrapMessage(msg) {
+  if (!msg) return null;
+  let current = msg;
+  while (current) {
+    if (current.ephemeralMessage?.message) {
+      current = current.ephemeralMessage.message;
+    } else if (current.viewOnceMessage?.message) {
+      current = current.viewOnceMessage.message;
+    } else if (current.viewOnceMessageV2?.message) {
+      current = current.viewOnceMessageV2.message;
+    } else if (current.viewOnceMessageV2Extension?.message) {
+      current = current.viewOnceMessageV2Extension.message;
+    } else if (current.documentWithCaptionMessage?.message) {
+      current = current.documentWithCaptionMessage.message;
+    } else {
+      break;
+    }
+  }
+  return current;
 }
 
 function checkIsViewOnce(rawMsg) {
   if (!rawMsg) return false;
   if (rawMsg.viewOnceMessage || rawMsg.viewOnceMessageV2 || rawMsg.viewOnceMessageV2Extension) return true;
-  if (rawMsg.ephemeralMessage) return checkIsViewOnce(rawMsg.ephemeralMessage.message);
-  if (rawMsg.documentWithCaptionMessage) return checkIsViewOnce(rawMsg.documentWithCaptionMessage.message);
 
   const clean = unwrapMessage(rawMsg);
   if (!clean) return false;
@@ -39,7 +48,30 @@ function checkIsViewOnce(rawMsg) {
   return false;
 }
 
-function getOwnerJid() {
+function extractViewOnceMedia(rawMsg) {
+  if (!rawMsg) return null;
+
+  const isViewOnce = checkIsViewOnce(rawMsg);
+  if (!isViewOnce) return null;
+
+  const cleanMsg = unwrapMessage(rawMsg);
+  if (!cleanMsg) return null;
+
+  const type = Object.keys(cleanMsg)[0];
+  if (!['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) return null;
+
+  const mediaMsg = cleanMsg[type];
+  if (!mediaMsg) return null;
+
+  const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
+
+  return { cleanMsg, type, mediaMsg, mediaType };
+}
+
+function getOwnerJid(conn) {
+  if (conn?.user?.id) {
+    return jidNormalizedUser(conn.user.id);
+  }
   const num = (config.BOT_OWNER || "94767945968").replace(/[^0-9]/g, "");
   return num + "@s.whatsapp.net";
 }
@@ -108,53 +140,44 @@ const antiviewoncePlugin = {
   onMessage: async (conn, mek) => {
     try {
       const rawMsg = mek?.message;
-      if (!rawMsg || mek.key.fromMe) return;
+      if (!rawMsg) return;
 
-      const isViewOnce = checkIsViewOnce(rawMsg);
-      if (!isViewOnce) return;
-
-      const cleanMsg = unwrapMessage(rawMsg);
-      if (!cleanMsg) return;
-
-      const type = Object.keys(cleanMsg)[0];
-      if (!['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) return;
-
-      const mediaMsg = cleanMsg[type];
-      if (!mediaMsg) return;
+      const voData = extractViewOnceMedia(rawMsg);
+      if (!voData) return;
 
       const msgId = mek.key?.id;
       if (msgId && processedMsgIds.has(msgId)) return;
-      if (msgId) {
-        processedMsgIds.add(msgId);
-        setTimeout(() => processedMsgIds.delete(msgId), 10 * 60 * 1000);
-      }
 
       const sender = mek.key.participant || mek.key.remoteJid;
       const chatJid = mek.key.remoteJid;
       const timestamp = mek.messageTimestamp || Math.floor(Date.now() / 1000);
 
-      viewOnceStore.set(mek.key.id, {
-        mek,
-        mediaMsg,
-        type,
-        sender,
-        from: chatJid,
-        timestamp
-      });
+      // Store in memory for manual .vv command fallback
+      if (msgId) {
+        processedMsgIds.add(msgId);
+        setTimeout(() => processedMsgIds.delete(msgId), 10 * 60 * 1000);
 
-      setTimeout(() => {
-        viewOnceStore.delete(mek.key.id);
-      }, 24 * 60 * 60 * 1000); // Store for 24 hours
+        viewOnceStore.set(msgId, {
+          mek,
+          mediaMsg: voData.mediaMsg,
+          type: voData.type,
+          sender,
+          from: chatJid,
+          timestamp
+        });
 
-      // Automatically recover and send directly to Owner's WhatsApp private chat (SILENTLY, no reply in sender chat!)
-      const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
-      const ownerJid = getOwnerJid();
+        setTimeout(() => {
+          viewOnceStore.delete(msgId);
+        }, 24 * 60 * 60 * 1000);
+      }
 
-      await processAndSendViewOnce(conn, mek, ownerJid, mediaMsg, mediaType, sender, chatJid, timestamp);
-      console.log(`[✓] View Once media from ${sender} automatically recovered and sent to Owner WhatsApp.`);
+      // Automatically recover and send directly to Owner's WhatsApp private chat (SILENTLY)
+      const ownerJid = getOwnerJid(conn);
+      await processAndSendViewOnce(conn, mek, ownerJid, voData.mediaMsg, voData.mediaType, sender, chatJid, timestamp);
+      console.log(`[✓] View Once media (${voData.mediaType}) from ${sender} automatically recovered and sent to Owner WhatsApp (${ownerJid}).`);
 
     } catch (err) {
-      console.log("AntiViewOnce auto recover error:", err.message);
+      console.error("❌ AntiViewOnce auto recover error:", err.message);
     }
   }
 };
@@ -182,16 +205,27 @@ cmd({
     if (!mediaData && quoted) {
       const cleanQuoted = unwrapMessage(quoted.fakeObj?.message || quoted.msg || quoted);
       if (cleanQuoted) {
-        const type = Object.keys(cleanQuoted)[0];
-        if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) {
-          const mediaMsg = cleanQuoted[type];
+        const voData = extractViewOnceMedia(cleanQuoted);
+        if (voData) {
           mediaData = {
-            mediaMsg,
-            type,
+            mediaMsg: voData.mediaMsg,
+            type: voData.type,
             sender: quoted.sender || from,
             from,
             timestamp: quoted.messageTimestamp || mek.messageTimestamp
           };
+        } else {
+          const type = Object.keys(cleanQuoted)[0];
+          if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) {
+            const mediaMsg = cleanQuoted[type];
+            mediaData = {
+              mediaMsg,
+              type,
+              sender: quoted.sender || from,
+              from,
+              timestamp: quoted.messageTimestamp || mek.messageTimestamp
+            };
+          }
         }
       }
     }
@@ -200,7 +234,7 @@ cmd({
       return reply("❌ *Please reply to a View Once (One-Time) photo, video, or voice message with .vv!*");
     }
 
-    const ownerJid = getOwnerJid();
+    const ownerJid = getOwnerJid(conn);
     const mediaType = mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio';
 
     await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from, mediaData.timestamp);
