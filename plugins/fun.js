@@ -3,30 +3,100 @@ const axios = require('axios');
 
 cmd({
     pattern: "weather",
-    alias: ["climate"],
+    alias: ["climate", "rain"],
     desc: "Get weather report for any city",
     category: "fun",
     react: "🌤️",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("🌤️ *Please enter a city name!*\n\n*Example:* `.weather Colombo`");
+        if (!q) return reply("🌤️ *Please enter a city name!*\n\n*Example:* `.weather Colombo` or `.climate Galle`");
 
-        const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(q)}&units=metric&appid=060fa735373d7241434a70e30287349c`).catch(() => null);
+        await conn.sendMessage(from, { react: { text: "🌤️", key: mek.key } });
 
-        if (!res || !res.data) {
-            return reply("❌ *City not found or weather service unavailable!*");
+        let cityName = q;
+        let country = "";
+        let temp = "";
+        let feelsLike = "";
+        let condition = "Clear";
+        let humidity = "";
+        let wind = "";
+        let pressure = "";
+        let success = false;
+
+        // Provider 1: wttr.in
+        try {
+            const res1 = await axios.get(`https://wttr.in/${encodeURIComponent(q)}?format=j1`, { timeout: 8000 });
+            if (res1.data && res1.data.current_condition && res1.data.current_condition.length > 0) {
+                const current = res1.data.current_condition[0];
+                const area = res1.data.nearest_area ? res1.data.nearest_area[0] : null;
+
+                cityName = area && area.areaName && area.areaName[0] ? area.areaName[0].value : q;
+                country = area && area.country && area.country[0] ? area.country[0].value : "";
+                temp = `${current.temp_C}°C`;
+                feelsLike = `${current.FeelsLikeC}°C`;
+                condition = current.weatherDesc && current.weatherDesc[0] ? current.weatherDesc[0].value : "Clear";
+                humidity = `${current.humidity}%`;
+                wind = `${current.windspeedKmph} km/h`;
+                pressure = `${current.pressure} hPa`;
+                success = true;
+            }
+        } catch (err) {}
+
+        // Provider 2: Open-Meteo Fallback
+        if (!success) {
+            try {
+                const geo = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1`, { timeout: 8000 });
+                if (geo.data && geo.data.results && geo.data.results.length > 0) {
+                    const loc = geo.data.results[0];
+                    const w = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,surface_pressure,wind_speed_10m`, { timeout: 8000 });
+                    if (w.data && w.data.current) {
+                        const cur = w.data.current;
+                        cityName = loc.name;
+                        country = loc.country || "";
+                        temp = `${cur.temperature_2m}°C`;
+                        feelsLike = `${cur.apparent_temperature}°C`;
+                        humidity = `${cur.relative_humidity_2m}%`;
+                        wind = `${cur.wind_speed_10m} km/h`;
+                        pressure = `${cur.surface_pressure} hPa`;
+                        condition = "Partly Cloudy";
+                        success = true;
+                    }
+                }
+            } catch (err) {}
         }
 
-        const data = res.data;
+        // Provider 3: OpenWeatherMap Fallback
+        if (!success) {
+            try {
+                const res3 = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(q)}&units=metric&appid=060fa735373d7241434a70e30287349c`, { timeout: 8000 });
+                if (res3.data && res3.data.main) {
+                    const d = res3.data;
+                    cityName = d.name;
+                    country = d.sys ? d.sys.country : "";
+                    temp = `${d.main.temp}°C`;
+                    feelsLike = `${d.main.feels_like}°C`;
+                    condition = d.weather && d.weather[0] ? d.weather[0].description : "Clear";
+                    humidity = `${d.main.humidity}%`;
+                    wind = `${d.wind.speed} m/s`;
+                    pressure = `${d.main.pressure} hPa`;
+                    success = true;
+                }
+            } catch (err) {}
+        }
+
+        if (!success) {
+            return reply("❌ *Could not find weather data for this city. Please check the spelling!*");
+        }
+
         const text = `╭━━━〔 *🌤️ WEATHER REPORT* 〕━━━╮
 ┃
-┃ 📍 *City:* ${data.name}, ${data.sys.country}
-┃ 🌡️ *Temperature:* ${data.main.temp}°C (Feels like ${data.main.feels_like}°C)
-┃ ☁️ *Condition:* ${data.weather[0].description}
-┃ 💧 *Humidity:* ${data.main.humidity}%
-┃ 💨 *Wind Speed:* ${data.wind.speed} m/s
-┃ 🌐 *Pressure:* ${data.main.pressure} hPa
+┃ 📍 *City:* ${cityName}${country ? `, ${country}` : ""}
+┃ 🌡️ *Temperature:* ${temp} (Feels like ${feelsLike})
+┃ ☁️ *Condition:* ${condition}
+┃ 💧 *Humidity:* ${humidity}
+┃ 💨 *Wind Speed:* ${wind}
+┃ 🌐 *Pressure:* ${pressure}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
