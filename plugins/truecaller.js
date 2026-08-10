@@ -1,12 +1,132 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
+// Helper function to detect country and network operator
+function getCountryAndCarrier(number) {
+  let country = "🌍 International";
+  let carrier = "Unknown Operator";
+
+  if (number.startsWith("94")) {
+    country = "🇱🇰 Sri Lanka";
+    const pref = number.substring(0, 4);
+    if (pref === "9477" || pref === "9476") {
+      carrier = "Dialog Axiata PLC";
+    } else if (pref === "9471" || pref === "9470") {
+      carrier = "SLT-Mobitel Mobile";
+    } else if (pref === "9478" || pref === "9475") {
+      carrier = "Hutchison Telecom (Hutch)";
+    } else if (pref === "9472") {
+      carrier = "Airtel Lanka (Dialog)";
+    } else if (number.startsWith("9411")) {
+      carrier = "SLT Landline / Fiber (Colombo)";
+    } else if (number.startsWith("9433")) {
+      carrier = "SLT Landline / Fiber (Gampaha)";
+    } else if (number.startsWith("9481")) {
+      carrier = "SLT Landline / Fiber (Kandy)";
+    } else if (number.startsWith("9491")) {
+      carrier = "SLT Landline / Fiber (Galle)";
+    } else if (number.startsWith("9421")) {
+      carrier = "SLT Landline / Fiber (Jaffna)";
+    } else if (number.startsWith("9452")) {
+      carrier = "SLT Landline / Fiber (Nuwara Eliya)";
+    } else if (number.startsWith("9438")) {
+      carrier = "SLT Landline / Fiber (Kalutara)";
+    } else if (number.startsWith("9437")) {
+      carrier = "SLT Landline / Fiber (Kurunegala)";
+    } else if (number.startsWith("9445")) {
+      carrier = "SLT Landline / Fiber (Ratnapura)";
+    } else if (number.startsWith("9455")) {
+      carrier = "SLT Landline / Fiber (Badulla)";
+    } else if (number.startsWith("9441")) {
+      carrier = "SLT Landline / Fiber (Matara)";
+    } else {
+      carrier = "Sri Lanka Telecom / Mobile";
+    }
+  } else if (number.startsWith("91")) {
+    country = "🇮🇳 India";
+  } else if (number.startsWith("1")) {
+    country = "🇺🇸 USA / Canada 🇨🇦";
+  } else if (number.startsWith("44")) {
+    country = "🇬🇧 United Kingdom";
+  } else if (number.startsWith("92")) {
+    country = "🇵🇰 Pakistan";
+  } else if (number.startsWith("880")) {
+    country = "🇧🇩 Bangladesh";
+  } else if (number.startsWith("966")) {
+    country = "🇸🇦 Saudi Arabia";
+  } else if (number.startsWith("971")) {
+    country = "🇦🇪 United Arab Emirates";
+  } else if (number.startsWith("974")) {
+    country = "🇶🇦 Qatar";
+  } else if (number.startsWith("965")) {
+    country = "🇰🇼 Kuwait";
+  } else if (number.startsWith("960")) {
+    country = "🇲🇻 Maldives";
+  } else if (number.startsWith("61")) {
+    country = "🇦🇺 Australia";
+  } else if (number.startsWith("65")) {
+    country = "🇸🇬 Singapore";
+  } else if (number.startsWith("60")) {
+    country = "🇲🇾 Malaysia";
+  }
+
+  return { country, carrier };
+}
+
+// Multi-provider Truecaller API search
+async function fetchTruecallerDetails(number) {
+  const providers = [
+    {
+      url: `https://api.vreden.web.id/api/truecaller?number=${number}`,
+      parse: (d) => d?.result || d?.data
+    },
+    {
+      url: `https://api.nexoracle.com/tools/truecaller?number=${number}`,
+      parse: (d) => d?.result || d?.data
+    },
+    {
+      url: `https://api.giftedtech.my.id/api/tools/truecaller?number=${number}`,
+      parse: (d) => d?.result || d?.data
+    },
+    {
+      url: `https://api.davidcyriltech.my.id/v1/truecaller?number=${number}`,
+      parse: (d) => d?.result || d?.data
+    },
+    {
+      url: `https://deliriussapi-oficial.vercel.app/tools/truecaller?number=${number}`,
+      parse: (d) => d?.data || d?.result
+    },
+    {
+      url: `https://api.siputzx.my.id/api/tools/truecaller?number=${number}`,
+      parse: (d) => d?.data || d?.result
+    }
+  ];
+
+  for (const p of providers) {
+    try {
+      const res = await axios.get(p.url, {
+        timeout: 4000,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+      });
+      if (res.data) {
+        const parsed = p.parse(res.data);
+        if (parsed && (parsed.name || parsed.callerName || parsed.display_name)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      // Continue to next fallback provider
+    }
+  }
+  return null;
+}
+
 cmd(
   {
     pattern: "truecaller",
-    alias: ["number", "true", "whois", "caller"],
+    alias: ["number", "true", "whois", "caller", "num"],
     react: "🔍",
-    desc: "Check phone number details",
+    desc: "Check phone number, Truecaller & WhatsApp profile details",
     category: "tools",
     filename: __filename,
   },
@@ -18,49 +138,137 @@ cmd(
       from,
       q,
       reply,
+      quoted,
     }
   ) => {
     try {
-      if (!q) {
-        return reply("❌ *Please provide a phone number!*\n\n*Example:* `.truecaller 94767945968`");
+      let rawNumber = "";
+
+      // Extract number from quoted message, mention, or input text
+      if (m && m.quoted && m.quoted.sender) {
+        rawNumber = m.quoted.sender.split("@")[0];
+      } else if (mek && mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length) {
+        rawNumber = mek.message.extendedTextMessage.contextInfo.mentionedJid[0].split("@")[0];
+      } else if (q) {
+        rawNumber = q;
       }
 
-      const number = q.replace(/[^0-9]/g, "");
+      rawNumber = rawNumber.replace(/[^0-9]/g, "");
 
-      await reply("🔍 *Searching Truecaller database... Please wait!*");
-
-      const response = await axios.get(`https://deliriussapi-oficial.vercel.app/tools/truecaller?number=${number}`).catch(() => null);
-
-      if (!response || !response.data) {
-        return reply("❌ *Could not find any details for this number.*");
+      // Handle Sri Lankan local format (e.g., 0767945968 -> 94767945968)
+      if (rawNumber.startsWith("0") && rawNumber.length === 10) {
+        rawNumber = "94" + rawNumber.substring(1);
       }
 
-      const resData = response.data.data || response.data.result || response.data;
-      
-      let name = resData.name || resData.display_name || resData.callerName || "Unknown";
-      let carrier = resData.carrier || resData.sim || "Unknown";
-      let country = resData.country || resData.countryCode || "Sri Lanka";
-      let email = resData.email || "Not Available";
+      if (!rawNumber || rawNumber.length < 7) {
+        return reply(
+          "❌ *Please provide a valid phone number, mention a user, or reply to a message!*\n\n" +
+          "*Examples:*\n" +
+          "• `.truecaller 94717845865`\n" +
+          "• `.truecaller 0717845865`\n" +
+          "• `.truecaller @user` (or reply to a message)"
+        );
+      }
 
-      let desc = `╭───────────────◆
-│   🔍 *TRUECALLER SEARCH* 🔍
+      await reply("🔍 *Searching Caller & WhatsApp database... Please wait!*");
+
+      const { country: defaultCountry, carrier: defaultCarrier } = getCountryAndCarrier(rawNumber);
+
+      // 1. Fetch Truecaller details from online fallback APIs
+      const tcData = await fetchTruecallerDetails(rawNumber);
+
+      let callerName = tcData?.name || tcData?.callerName || tcData?.display_name || null;
+      let callerCarrier = tcData?.carrier || tcData?.sim || defaultCarrier;
+      let callerCountry = tcData?.country || tcData?.countryCode || defaultCountry;
+      let callerEmail = tcData?.email || tcData?.eMail || "Not Available";
+      let callerAddress = tcData?.address || tcData?.city || "Not Available";
+
+      // 2. Fetch WhatsApp Real-Time Profile & Status info via Baileys
+      const jid = `${rawNumber}@s.whatsapp.net`;
+      let isWhatsApp = "Unknown";
+      let waBio = "Not Available / Private";
+      let waBioDate = "";
+      let profilePicUrl = null;
+      let isBusiness = false;
+      let businessInfo = "";
+
+      try {
+        const onWa = await chathubro.onWhatsApp(jid);
+        if (onWa && onWa.length > 0 && onWa[0].exists) {
+          isWhatsApp = "✅ Registered on WhatsApp";
+
+          // Fetch WhatsApp Bio status
+          try {
+            const statusObj = await chathubro.fetchStatus(jid);
+            if (statusObj && statusObj.status) {
+              waBio = statusObj.status;
+              if (statusObj.setAt) {
+                waBioDate = new Date(statusObj.setAt).toLocaleDateString("en-GB");
+              }
+            }
+          } catch (err) {}
+
+          // Fetch Profile Picture URL
+          try {
+            profilePicUrl = await chathubro.profilePictureUrl(jid, "image");
+          } catch (err) {}
+
+          // Fetch Business Profile details if available
+          try {
+            const biz = await chathubro.getBusinessProfile(jid);
+            if (biz) {
+              isBusiness = true;
+              if (biz.description) businessInfo += `\n│ 🏢 *Biz Info:* ${biz.description.trim()}`;
+              if (biz.category) businessInfo += `\n│ 🏷️ *Category:* ${biz.category}`;
+              if (biz.email) callerEmail = biz.email;
+            }
+          } catch (err) {}
+        } else {
+          isWhatsApp = "❌ Not Registered on WhatsApp";
+        }
+      } catch (e) {
+        console.error("WhatsApp check error:", e);
+      }
+
+      // If Truecaller did not find a name, use a helpful descriptive label
+      const finalName = callerName || (isBusiness ? "WhatsApp Business User" : "Not Publicly Listed");
+
+      let report = `╭───────────────◆
+│   🔍 *CALLER & NUMBER LOOKUP* 🔍
 ├───────────────◆
-│ 👤 *Name:* ${name}
-│ 📞 *Number:* +${number}
-│ 🌐 *Country:* ${country}
-│ 📡 *Carrier:* ${carrier}
-│ 📧 *Email:* ${email}
+│ 👤 *Name:* ${finalName}
+│ 📞 *Number:* +${rawNumber}
+│ 🌐 *Country:* ${callerCountry}
+│ 📡 *Network:* ${callerCarrier}
+│ 💬 *WhatsApp:* ${isWhatsApp}
+│ 📝 *WA Status:* ${waBio}${waBioDate ? ` (${waBioDate})` : ""}
+│ 📧 *Email:* ${callerEmail}
+│ 📍 *Location:* ${callerAddress}${businessInfo}
 └───────────────◆
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-      await chathubro.sendMessage(from, {
-        text: desc
-      }, { quoted: mek });
-
+      if (profilePicUrl) {
+        await chathubro.sendMessage(
+          from,
+          {
+            image: { url: profilePicUrl },
+            caption: report
+          },
+          { quoted: mek }
+        );
+      } else {
+        await chathubro.sendMessage(
+          from,
+          {
+            text: report
+          },
+          { quoted: mek }
+        );
+      }
     } catch (e) {
       console.error("Truecaller Error:", e);
-      reply(`❌ *Error:* ${e.message}`);
+      reply(`❌ *Lookup Error:* ${e.message}`);
     }
   }
 );
