@@ -4,13 +4,56 @@ const { empiretourl } = require('../lib/functions');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
+const webp = require('node-webpmux');
 
-let ffmpegPath = 'ffmpeg';
-try {
-    const staticFfmpeg = require('ffmpeg-static');
-    if (staticFfmpeg) ffmpegPath = staticFfmpeg;
-} catch (e) {}
+function getFfmpegPath() {
+    try {
+        const staticFfmpeg = require('ffmpeg-static');
+        if (staticFfmpeg && fs.existsSync(staticFfmpeg)) return staticFfmpeg;
+    } catch (e) {}
+    return 'ffmpeg';
+}
+
+function runFfmpeg(args) {
+    return new Promise((resolve, reject) => {
+        const bin = getFfmpegPath();
+        execFile(bin, args, (err, stdout, stderr) => {
+            if (err) return reject(err);
+            resolve({ stdout, stderr });
+        });
+    });
+}
+
+async function addExif(webpBuffer, packname = "Chathunga-Dev", author = "Chathunga Bimsara") {
+    try {
+        const img = new webp.Image();
+        await img.load(webpBuffer);
+
+        const json = {
+            "sticker-pack-id": "https://github.com/chathunga2007",
+            "sticker-pack-name": packname,
+            "sticker-pack-publisher": author,
+            "emojis": ["🎨"]
+        };
+
+        let exifAttr = Buffer.from([
+            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x16, 0x00, 0x00, 0x00
+        ]);
+
+        let jsonBuffer = Buffer.from(JSON.stringify(json), "utf-8");
+        let exif = Buffer.concat([exifAttr, jsonBuffer]);
+        exif.writeUIntLE(jsonBuffer.length, 14, 4);
+
+        img.exif = exif;
+        return await img.save(null);
+    } catch (e) {
+        console.error("Exif error:", e.message);
+        return webpBuffer;
+    }
+}
 
 const tempDir = path.join(__dirname, '../temp');
 if (!fs.existsSync(tempDir)) {
@@ -42,24 +85,43 @@ cmd({
         fs.writeFileSync(inputPath, mediaBuffer);
 
         const isVideo = mime.includes('video');
-        const ffmpegCmd = isVideo
-            ? `"${ffmpegPath}" -i "${inputPath}" -vcodec libwebp -filter:v "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,fps=15,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -lossless 0 -compression_level 6 -q:v 50 -loop 0 -preset default -an -vsync 0 "${outputPath}"`
-            : `"${ffmpegPath}" -i "${inputPath}" -vf "scale='min(320,iw)':min(320,ih)':force_original_aspect_ratio=decrease,pad=320:320:(320-iw)/2:(320-ih)/2:color=black@0.0" -vcodec libwebp "${outputPath}"`;
+        const args = isVideo ? [
+            '-y',
+            '-i', inputPath,
+            '-vcodec', 'libwebp',
+            '-filter:v', "scale='min(512,iw)':min(512,ih)':force_original_aspect_ratio=decrease,fps=15,pad=512:512:(512-iw)/2:(512-ih)/2:color=black@0.0",
+            '-lossless', '0',
+            '-compression_level', '6',
+            '-q:v', '50',
+            '-loop', '0',
+            '-preset', 'default',
+            '-an',
+            '-vsync', '0',
+            outputPath
+        ] : [
+            '-y',
+            '-i', inputPath,
+            '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(512-iw)/2:(512-ih)/2:color=0x00000000',
+            '-vcodec', 'libwebp',
+            outputPath
+        ];
 
-        exec(ffmpegCmd, async (err) => {
-            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        try {
+            await runFfmpeg(args);
+            if (!fs.existsSync(outputPath)) throw new Error("Output webp sticker file not created");
 
-            if (err || !fs.existsSync(outputPath)) {
-                console.error("FFmpeg error:", err);
-                return reply("❌ *Failed to convert media to sticker. Ensure FFmpeg is installed.*");
-            }
-
-            const stickerBuffer = fs.readFileSync(outputPath);
-            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            const rawBuffer = fs.readFileSync(outputPath);
+            const stickerBuffer = await addExif(rawBuffer, "Chathunga-Dev", "Chathunga Bimsara");
 
             await conn.sendMessage(from, { sticker: stickerBuffer }, { quoted: mek });
             await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-        });
+        } catch (err) {
+            console.error("FFmpeg sticker error:", err);
+            return reply("❌ *Failed to convert media to sticker. Ensure FFmpeg is installed.*");
+        } finally {
+            if (fs.existsSync(inputPath)) try { fs.unlinkSync(inputPath); } catch {}
+            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch {}
+        }
     } catch (e) {
         console.error("Sticker Error:", e);
         reply(`❌ *Error creating sticker:* ${e.message}`);
@@ -88,22 +150,24 @@ cmd({
 
         fs.writeFileSync(inputPath, mediaBuffer);
 
-        exec(`"${ffmpegPath}" -i "${inputPath}" "${outputPath}"`, async (err) => {
-            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        const args = ['-y', '-i', inputPath, outputPath];
 
-            if (err || !fs.existsSync(outputPath)) {
-                console.error("FFmpeg toimage error:", err);
-                return reply("❌ *Failed to convert sticker to image!*");
-            }
+        try {
+            await runFfmpeg(args);
+            if (!fs.existsSync(outputPath)) throw new Error("Output image file not created");
 
             const imageBuffer = fs.readFileSync(outputPath);
-            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-
             await conn.sendMessage(from, {
                 image: imageBuffer,
                 caption: "✨ *Converted from Sticker!*"
             }, { quoted: mek });
-        });
+        } catch (err) {
+            console.error("FFmpeg toimage error:", err);
+            return reply("❌ *Failed to convert sticker to image!*");
+        } finally {
+            if (fs.existsSync(inputPath)) try { fs.unlinkSync(inputPath); } catch {}
+            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch {}
+        }
     } catch (e) {
         console.error("ToImage Error:", e);
         reply(`❌ *Error:* ${e.message}`);
@@ -171,39 +235,46 @@ cmd({
 
         let aiResponse = null;
 
+        // Provider 1: Pollinations AI
         try {
             const apiRes0 = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(q)}`, {
                 headers: { 'User-Agent': 'Mozilla/5.0' },
                 timeout: 12000
             });
-            if (apiRes0.data && typeof apiRes0.data === 'string' && apiRes0.data.trim().length > 0) {
-                aiResponse = apiRes0.data.trim();
+            if (apiRes0.data !== undefined && apiRes0.data !== null) {
+                const ansStr = String(apiRes0.data).trim();
+                if (ansStr.length > 0 && !ansStr.includes("<!DOCTYPE html>")) {
+                    aiResponse = ansStr;
+                }
             }
         } catch (err) {}
         
+        // Provider 2: Vreden API
         if (!aiResponse) {
             try {
                 const apiRes = await axios.get(`https://api.vreden.web.id/api/ai-chat?query=${encodeURIComponent(q)}`, { timeout: 8000 });
                 if (apiRes.data && (apiRes.data.result || apiRes.data.response)) {
-                    aiResponse = apiRes.data.result || apiRes.data.response;
+                    aiResponse = String(apiRes.data.result || apiRes.data.response).trim();
                 }
             } catch (err) {}
         }
 
+        // Provider 3: Delirius API
         if (!aiResponse) {
             try {
-                const apiRes2 = await axios.get(`https://deliriussapi-oficial.vercel.app/ia/gptweb?text=${encodeURIComponent(q)}`);
+                const apiRes2 = await axios.get(`https://deliriussapi-oficial.vercel.app/ia/gptweb?text=${encodeURIComponent(q)}`, { timeout: 8000 });
                 if (apiRes2.data && apiRes2.data.gpt) {
-                    aiResponse = apiRes2.data.gpt;
+                    aiResponse = String(apiRes2.data.gpt).trim();
                 }
             } catch (err) {}
         }
 
+        // Provider 4: Kaiz API
         if (!aiResponse) {
             try {
-                const apiRes3 = await axios.get(`https://kaiz-apis.gleeze.com/api/gpt-4o?q=${encodeURIComponent(q)}`);
+                const apiRes3 = await axios.get(`https://kaiz-apis.gleeze.com/api/gpt-4o?q=${encodeURIComponent(q)}`, { timeout: 8000 });
                 if (apiRes3.data && (apiRes3.data.response || apiRes3.data.result)) {
-                    aiResponse = apiRes3.data.response || apiRes3.data.result;
+                    aiResponse = String(apiRes3.data.response || apiRes3.data.result).trim();
                 }
             } catch (err) {}
         }
