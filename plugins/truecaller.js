@@ -177,7 +177,7 @@ cmd(
 
       rawNumber = rawNumber.replace(/[^0-9]/g, "");
 
-      // Handle Sri Lankan local format (e.g., 0767945968 -> 94767945968)
+      // Handle Sri Lankan local format (e.g., 0712345678 -> 94712345678)
       if (rawNumber.startsWith("0") && rawNumber.length === 10) {
         rawNumber = "94" + rawNumber.substring(1);
       }
