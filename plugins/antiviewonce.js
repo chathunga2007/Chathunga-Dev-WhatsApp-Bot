@@ -1,5 +1,6 @@
 const { cmd } = require("../command");
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const config = require("../config");
 const fs = require('fs');
 const path = require('path');
 
@@ -19,8 +20,12 @@ function unwrapMessage(message) {
   return message;
 }
 
-async function processAndSendViewOnce(conn, mek, from, mediaMsg, mediaType, sender) {
-  const typeKey = mediaType === 'image' ? 'imageMessage' : mediaType === 'video' ? 'videoMessage' : 'audioMessage';
+function getOwnerJid() {
+  const num = (config.BOT_OWNER || "94767945968").replace(/[^0-9]/g, "");
+  return num + "@s.whatsapp.net";
+}
+
+async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid) {
   const stream = await downloadContentFromMessage(mediaMsg, mediaType);
 
   let buffer = Buffer.from([]);
@@ -37,9 +42,13 @@ async function processAndSendViewOnce(conn, mek, from, mediaMsg, mediaType, send
   await fs.promises.writeFile(filePath, buffer);
 
   const senderTag = sender ? `@${sender.split('@')[0]}` : "User";
+  const isGroup = chatJid && chatJid.endsWith('@g.us');
+  const chatType = isGroup ? "Group Chat" : "Direct DM";
+
   const caption = `╭━━━〔 *👁️ VIEW ONCE RECOVERED* 〕━━━╮
 ┃
 ┃ 👤 *Sender:* ${senderTag}
+┃ 💬 *Chat:* ${chatType}
 ┃ 📁 *Type:* ${mediaType.toUpperCase()}
 ┃ 🕒 *Time:* ${new Date().toLocaleTimeString()}
 ┃
@@ -47,12 +56,14 @@ async function processAndSendViewOnce(conn, mek, from, mediaMsg, mediaType, send
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
+  const sendOptions = { mentions: sender ? [sender] : [] };
+
   if (mediaType === 'image') {
-    await conn.sendMessage(from, { image: { url: filePath }, caption, mentions: sender ? [sender] : [] }, { quoted: mek });
+    await conn.sendMessage(targetJid, { image: { url: filePath }, caption, ...sendOptions });
   } else if (mediaType === 'video') {
-    await conn.sendMessage(from, { video: { url: filePath }, caption, mentions: sender ? [sender] : [] }, { quoted: mek });
+    await conn.sendMessage(targetJid, { video: { url: filePath }, caption, ...sendOptions });
   } else if (mediaType === 'audio') {
-    await conn.sendMessage(from, { audio: { url: filePath }, mimetype: 'audio/mp4', ptt: true, caption, mentions: sender ? [sender] : [] }, { quoted: mek });
+    await conn.sendMessage(targetJid, { audio: { url: filePath }, mimetype: 'audio/mp4', ptt: true, caption, ...sendOptions });
   }
 
   setTimeout(() => {
@@ -74,22 +85,34 @@ const antiviewoncePlugin = {
       if (!['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) return;
 
       const mediaMsg = cleanMsg[type];
-      if (!mediaMsg || (!mediaMsg.viewOnce && !cleanMsg.viewOnce)) return;
+      const isViewOnce = mediaMsg?.viewOnce || cleanMsg?.viewOnce || mek.message?.viewOnceMessageV2 || mek.message?.viewOnceMessage || mek.message?.viewOnceMessageV2Extension;
+
+      if (!mediaMsg || !isViewOnce) return;
+
+      const sender = mek.key.participant || mek.key.remoteJid;
+      const chatJid = mek.key.remoteJid;
 
       viewOnceStore.set(mek.key.id, {
         mek,
         mediaMsg,
         type,
-        sender: mek.key.participant || mek.key.remoteJid,
-        from: mek.key.remoteJid
+        sender,
+        from: chatJid
       });
 
       setTimeout(() => {
         viewOnceStore.delete(mek.key.id);
       }, 24 * 60 * 60 * 1000); // Store for 24 hours
 
+      // Automatically recover and send directly to Owner's WhatsApp private chat
+      const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
+      const ownerJid = getOwnerJid();
+      
+      await processAndSendViewOnce(conn, mek, ownerJid, mediaMsg, mediaType, sender, chatJid);
+      console.log(`[✓] View Once media from ${sender} automatically recovered and sent to Owner WhatsApp.`);
+
     } catch (err) {
-      console.log("AntiViewOnce store error:", err.message);
+      console.log("AntiViewOnce auto recover error:", err.message);
     }
   }
 };
@@ -121,7 +144,8 @@ cmd({
           mediaData = {
             mediaMsg,
             type,
-            sender: quoted.sender || from
+            sender: quoted.sender || from,
+            from
           };
         }
       }
@@ -131,10 +155,14 @@ cmd({
       return reply("❌ *Please reply to a View Once (One-Time) photo, video, or voice message with .vv!*");
     }
 
-    await reply("👁️ *Fetching & recovering View Once media...*");
-
+    const ownerJid = getOwnerJid();
     const mediaType = mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio';
-    await processAndSendViewOnce(conn, mek, from, mediaData.mediaMsg, mediaType, mediaData.sender);
+    
+    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from);
+
+    if (from !== ownerJid) {
+      await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
+    }
 
   } catch (e) {
     console.error("ViewOnce Command Error:", e);
@@ -159,8 +187,14 @@ antiviewoncePlugin.replyHandlers = [
           return reply("❌ *View Once message not found in memory store or has expired! Try replying with .vv command.*");
         }
 
+        const ownerJid = getOwnerJid();
         const mediaType = storedData.type === 'imageMessage' ? 'image' : storedData.type === 'videoMessage' ? 'video' : 'audio';
-        await processAndSendViewOnce(conn, mek, from, storedData.mediaMsg, mediaType, storedData.sender);
+        
+        await processAndSendViewOnce(conn, mek, ownerJid, storedData.mediaMsg, mediaType, storedData.sender, storedData.from || from);
+
+        if (from !== ownerJid) {
+          await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
+        }
       } catch (err) {
         console.log("AntiViewOnce reply grab error:", err.message);
         reply(`❌ *Failed to retrieve View Once message:* ${err.message}`);
