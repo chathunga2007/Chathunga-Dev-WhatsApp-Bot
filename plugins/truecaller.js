@@ -170,9 +170,9 @@ cmd(
           rawNumber = mention.split("@")[0];
         }
       }
-      // 🎯 Priority 3: Use quoted message sender if replying without input text
-      else if (quoted && typeof quoted.sender === "string" && quoted.sender) {
-        rawNumber = quoted.sender.split("@")[0];
+      // 🎯 Priority 3: Use quoted message sender if replying to another message
+      else if (m && m.quoted && typeof m.quoted.sender === "string" && m.quoted.sender) {
+        rawNumber = m.quoted.sender.split("@")[0];
       }
 
       rawNumber = rawNumber.replace(/[^0-9]/g, "");
@@ -186,8 +186,8 @@ cmd(
         return reply(
           "❌ *Please provide a valid phone number, mention a user, or reply to a message!*\n\n" +
           "*Examples:*\n" +
-          "• `.truecaller 94717845865`\n" +
           "• `.truecaller 0717845865`\n" +
+          "• `.truecaller 94717845865`\n" +
           "• `.truecaller @user` (or reply to a message)"
         );
       }
