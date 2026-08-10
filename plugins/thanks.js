@@ -1,6 +1,6 @@
 const { cmd } = require("../command");
 
-const thanksKeywords = ["thank", "thanks", "tq", "thnx", "thankyou", "ස්තූතියි", "Thank you"];
+const thanksKeywords = ["thank", "thanks", "Thank you bro", "tq", "thnx", "thankyou", "ස්තූතියි", "Thank you"];
 
 module.exports = {
   thanksFilter: (body, mek) => {
