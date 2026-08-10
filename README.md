@@ -226,7 +226,7 @@ Contributions, issues, and feature requests are welcome! Feel free to check the 
 
 ### Author & Developer
 - **Chathunga Bimsara**
-- 💬 **WhatsApp:** [+94 76 794 5968](https://wa.me/94767945968)
+- 💬 **WhatsApp:** ChathuBro2007
 - 🐙 **GitHub:** [@chathunga2007](https://github.com/chathunga2007)
 
 ---
