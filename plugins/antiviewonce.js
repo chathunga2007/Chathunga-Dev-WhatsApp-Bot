@@ -10,6 +10,7 @@ if (!fs.existsSync(tempFolder)) {
 }
 
 const viewOnceStore = new Map();
+const processedMsgIds = new Set();
 
 function unwrapMessage(message) {
   if (!message) return null;
@@ -17,7 +18,25 @@ function unwrapMessage(message) {
   if (message.viewOnceMessageV2) return unwrapMessage(message.viewOnceMessageV2.message);
   if (message.viewOnceMessageV2Extension) return unwrapMessage(message.viewOnceMessageV2Extension.message);
   if (message.viewOnceMessage) return unwrapMessage(message.viewOnceMessage.message);
+  if (message.documentWithCaptionMessage) return unwrapMessage(message.documentWithCaptionMessage.message);
   return message;
+}
+
+function checkIsViewOnce(rawMsg) {
+  if (!rawMsg) return false;
+  if (rawMsg.viewOnceMessage || rawMsg.viewOnceMessageV2 || rawMsg.viewOnceMessageV2Extension) return true;
+  if (rawMsg.ephemeralMessage) return checkIsViewOnce(rawMsg.ephemeralMessage.message);
+  if (rawMsg.documentWithCaptionMessage) return checkIsViewOnce(rawMsg.documentWithCaptionMessage.message);
+
+  const clean = unwrapMessage(rawMsg);
+  if (!clean) return false;
+
+  const type = Object.keys(clean)[0];
+  if (!type) return false;
+  const mediaObj = clean[type];
+  if (mediaObj && (mediaObj.viewOnce || clean.viewOnce)) return true;
+
+  return false;
 }
 
 function getOwnerJid() {
@@ -43,8 +62,8 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
     throw new Error("Empty media buffer received.");
   }
 
-  const ext = mediaType === 'image' ? '.jpg' : mediaType === 'video' ? '.mp4' : '.mp3';
-  const filePath = path.join(tempFolder, `viewonce_${Date.now()}${ext}`);
+  const ext = mediaType === 'image' ? '.jpg' : mediaType === 'video' ? '.mp4' : (mediaMsg.mimetype?.includes('ogg') ? '.ogg' : '.mp3');
+  const filePath = path.join(tempFolder, `viewonce_${Date.now()}_${Math.floor(Math.random() * 1000)}${ext}`);
   await fs.promises.writeFile(filePath, buffer);
 
   const senderTag = sender ? `@${sender.split('@')[0]}` : "User";
@@ -70,7 +89,12 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
   } else if (mediaType === 'video') {
     await conn.sendMessage(targetJid, { video: { url: filePath }, caption, ...sendOptions });
   } else if (mediaType === 'audio') {
-    await conn.sendMessage(targetJid, { audio: { url: filePath }, mimetype: 'audio/mp4', ptt: true, caption, ...sendOptions });
+    await conn.sendMessage(targetJid, {
+      audio: { url: filePath },
+      mimetype: mediaMsg.mimetype || 'audio/mp4',
+      ptt: Boolean(mediaMsg.ptt)
+    });
+    await conn.sendMessage(targetJid, { text: caption, ...sendOptions });
   }
 
   setTimeout(() => {
@@ -86,14 +110,8 @@ const antiviewoncePlugin = {
       const rawMsg = mek?.message;
       if (!rawMsg || mek.key.fromMe) return;
 
-      const isViewOnce = Boolean(
-        rawMsg.viewOnceMessage ||
-        rawMsg.viewOnceMessageV2 ||
-        rawMsg.viewOnceMessageV2Extension ||
-        rawMsg.imageMessage?.viewOnce ||
-        rawMsg.videoMessage?.viewOnce ||
-        rawMsg.audioMessage?.viewOnce
-      );
+      const isViewOnce = checkIsViewOnce(rawMsg);
+      if (!isViewOnce) return;
 
       const cleanMsg = unwrapMessage(rawMsg);
       if (!cleanMsg) return;
@@ -104,8 +122,12 @@ const antiviewoncePlugin = {
       const mediaMsg = cleanMsg[type];
       if (!mediaMsg) return;
 
-      const isValidViewOnce = isViewOnce || Boolean(mediaMsg.viewOnce || cleanMsg.viewOnce);
-      if (!isValidViewOnce) return;
+      const msgId = mek.key?.id;
+      if (msgId && processedMsgIds.has(msgId)) return;
+      if (msgId) {
+        processedMsgIds.add(msgId);
+        setTimeout(() => processedMsgIds.delete(msgId), 10 * 60 * 1000);
+      }
 
       const sender = mek.key.participant || mek.key.remoteJid;
       const chatJid = mek.key.remoteJid;
@@ -124,10 +146,10 @@ const antiviewoncePlugin = {
         viewOnceStore.delete(mek.key.id);
       }, 24 * 60 * 60 * 1000); // Store for 24 hours
 
-      // Automatically recover and send directly to Owner's WhatsApp private chat
+      // Automatically recover and send directly to Owner's WhatsApp private chat (SILENTLY, no reply in sender chat!)
       const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
       const ownerJid = getOwnerJid();
-      
+
       await processAndSendViewOnce(conn, mek, ownerJid, mediaMsg, mediaType, sender, chatJid, timestamp);
       console.log(`[✓] View Once media from ${sender} automatically recovered and sent to Owner WhatsApp.`);
 
@@ -144,8 +166,10 @@ cmd({
   desc: "Download and view WhatsApp View Once (One-Time) messages",
   category: "tools",
   filename: __filename
-}, async (conn, mek, m, { from, reply }) => {
+}, async (conn, mek, m, { from, reply, isOwner }) => {
   try {
+    if (!isOwner) return;
+
     const quoted = m.quoted ? m.quoted : null;
     const quotedId = quoted ? quoted.id : null;
 
@@ -178,51 +202,14 @@ cmd({
 
     const ownerJid = getOwnerJid();
     const mediaType = mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio';
-    
-    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from, mediaData.timestamp);
 
-    if (from !== ownerJid) {
-      await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
-    }
+    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from, mediaData.timestamp);
 
   } catch (e) {
     console.error("ViewOnce Command Error:", e);
     reply(`❌ *Failed to retrieve View Once message:* ${e.message}`);
   }
 });
-
-// Also register reply handlers for typing 'vv' or 'get' replying to view-once message
-antiviewoncePlugin.replyHandlers = [
-  {
-    filter: (text) => {
-      const t = text.trim().toLowerCase();
-      return t === "vv" || t === "get" || t === ".vv" || t === ".get";
-    },
-    function: async (conn, mek, m, { from, reply }) => {
-      try {
-        const quotedId = mek.message?.extendedTextMessage?.contextInfo?.stanzaId;
-        if (!quotedId) return;
-
-        const storedData = viewOnceStore.get(quotedId);
-        if (!storedData) {
-          return reply("❌ *View Once message not found in memory store or has expired! Try replying with .vv command.*");
-        }
-
-        const ownerJid = getOwnerJid();
-        const mediaType = storedData.type === 'imageMessage' ? 'image' : storedData.type === 'videoMessage' ? 'video' : 'audio';
-        
-        await processAndSendViewOnce(conn, mek, ownerJid, storedData.mediaMsg, mediaType, storedData.sender, storedData.from || from, storedData.timestamp);
-
-        if (from !== ownerJid) {
-          await reply("👁️ *View Once media recovered and sent directly to your Owner WhatsApp Chat!*");
-        }
-      } catch (err) {
-        console.log("AntiViewOnce reply grab error:", err.message);
-        reply(`❌ *Failed to retrieve View Once message:* ${err.message}`);
-      }
-    }
-  }
-];
 
 if (global.pluginHooks && !global.pluginHooks.includes(antiviewoncePlugin)) {
   global.pluginHooks.push(antiviewoncePlugin);
