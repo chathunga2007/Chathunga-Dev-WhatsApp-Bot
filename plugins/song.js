@@ -76,7 +76,7 @@ cmd(
           ? durationParts[0] * 3600 + durationParts[1] * 60 + durationParts[2]
           : durationParts[0] * 60 + durationParts[1];
 
-      if (totalSeconds > 1800) {
+      if (totalSeconds > 5400) {
         return reply("⏳ *Sorry, audio files longer than 30 minutes are not supported.*");
       }
 
