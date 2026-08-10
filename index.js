@@ -209,22 +209,22 @@ async function connectToWA() {
       }
     }
 
-    const mek = messages[0];
-    if (!mek || !mek.message) return;
+    for (const mek of messages) {
+      if (!mek || !mek.message) continue;
 
-    mek.message = getContentType(mek.message) === 'ephemeralMessage' ? mek.message.ephemeralMessage.message : mek.message;
+      mek.message = getContentType(mek.message) === 'ephemeralMessage' ? mek.message.ephemeralMessage.message : mek.message;
 
-    if (global.pluginHooks) {
-      for (const plugin of global.pluginHooks) {
-        if (plugin.onMessage) {
-          try {
-            await plugin.onMessage(chathunga_dev, mek);
-          } catch (e) {
-            console.log("onMessage error:", e);
+      if (global.pluginHooks) {
+        for (const plugin of global.pluginHooks) {
+          if (plugin.onMessage) {
+            try {
+              await plugin.onMessage(chathunga_dev, mek);
+            } catch (e) {
+              console.log("onMessage error:", e);
+            }
           }
         }
       }
-    }
 
     if (mek.key?.remoteJid === 'status@broadcast') {
       if (config.AUTO_STATUS_SEEN === "true") {
@@ -262,7 +262,7 @@ async function connectToWA() {
 
     if (!mek.key?.fromMe && thanksPlugin.thanksFilter(body, mek)) {
       thanksPlugin.thanksSessionReply(chathunga_dev, mek, m, { from });
-      return;
+      continue;
     }
 
     const cleanBody = body.trim();
@@ -326,7 +326,8 @@ async function connectToWA() {
         }
       }
     }
-  });
+  }
+});
 
   chathunga_dev.ev.on('messages.update', async (updates) => {
     if (global.pluginHooks) {
