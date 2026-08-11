@@ -151,6 +151,13 @@ function getOwnerJids(conn) {
   return Array.from(jids);
 }
 
+function isSenderOwner(senderJid, conn) {
+  if (!senderJid) return false;
+  const normalizedSender = jidNormalizedUser(senderJid);
+  const owners = getOwnerJids(conn);
+  return owners.some(ownerJid => jidNormalizedUser(ownerJid) === normalizedSender);
+}
+
 function formatTime(timestamp) {
   const rawSec = timestamp ? (typeof timestamp === 'object' ? timestamp.low || timestamp.toNumber() : timestamp) : Math.floor(Date.now() / 1000);
   const date = new Date(rawSec > 1e11 ? rawSec : rawSec * 1000);
@@ -304,13 +311,15 @@ const antiviewoncePlugin = {
             } catch (e) { cacheFileName = null; }
           }
 
+          const actualSender = mek.key?.fromMe ? (conn.user?.id || sender) : sender;
+
           viewOnceStore.set(msgId, {
             cacheFileName,
             buffer,
             mediaMsg: voData.mediaMsg,
             type: voData.type,
             mediaType: voData.mediaType,
-            sender,
+            sender: actualSender ? jidNormalizedUser(actualSender) : sender,
             from: chatJid,
             timestamp
           });
@@ -325,8 +334,8 @@ const antiviewoncePlugin = {
             savePersistentStore();
           }, 24 * 60 * 60 * 1000);
 
-          // Auto-recover and send to owner
-          await sendToOwners(conn, mek, voData.mediaMsg, voData.mediaType, sender, chatJid, timestamp, buffer);
+          // Do NOT auto-send to owner on initial arrival.
+          // ViewOnce is cached and will only be forwarded if someone else sent it and a reply/reaction occurs.
         }
         return;
       }
@@ -345,6 +354,11 @@ const antiviewoncePlugin = {
         if (targetId) {
           let mediaData = viewOnceStore.get(targetId);
           if (mediaData) {
+            if (isSenderOwner(mediaData.sender, conn)) {
+              console.log(`[i] View Once reaction ignored: original View Once was sent by owner.`);
+              return;
+            }
+
             if (!mediaData.buffer && mediaData.cacheFileName && fs.existsSync(path.join(tempFolder, mediaData.cacheFileName))) {
               mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
             }
@@ -418,6 +432,11 @@ const antiviewoncePlugin = {
       }
 
       if (mediaData && mediaData.mediaMsg) {
+        if (isSenderOwner(mediaData.sender, conn)) {
+          console.log(`[i] View Once reply ignored: original View Once was sent by owner.`);
+          return;
+        }
+
         if (quotedId && !viewOnceStore.has(quotedId)) {
           viewOnceStore.set(quotedId, mediaData);
           savePersistentStore();
@@ -460,6 +479,11 @@ const antiviewoncePlugin = {
 
         let mediaData = viewOnceStore.get(targetId);
         if (mediaData) {
+          if (isSenderOwner(mediaData.sender, conn)) {
+            console.log(`[i] Baileys View Once reaction ignored: original View Once was sent by owner.`);
+            continue;
+          }
+
           if (!mediaData.buffer && mediaData.cacheFileName && fs.existsSync(path.join(tempFolder, mediaData.cacheFileName))) {
             mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
           }
