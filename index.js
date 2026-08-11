@@ -102,7 +102,6 @@ async function ensureSessionFile() {
         return;
       }
     } catch (e) {
-      // Continue to Mega download if base64 decoding fails
     }
 
     try {
