@@ -9,8 +9,47 @@ if (!fs.existsSync(tempFolder)) {
   fs.mkdirSync(tempFolder, { recursive: true });
 }
 
+const storeFilePath = path.join(tempFolder, 'viewonce_store.json');
 const viewOnceStore = new Map();
 const processedMsgIds = new Set();
+
+function loadPersistentStore() {
+  try {
+    if (fs.existsSync(storeFilePath)) {
+      const data = JSON.parse(fs.readFileSync(storeFilePath, 'utf-8'));
+      const now = Math.floor(Date.now() / 1000);
+      for (const [id, item] of Object.entries(data)) {
+        if (now - (item.timestamp || 0) < 24 * 60 * 60) {
+          if (item.cacheFileName && fs.existsSync(path.join(tempFolder, item.cacheFileName))) {
+            item.buffer = fs.readFileSync(path.join(tempFolder, item.cacheFileName));
+          }
+          viewOnceStore.set(id, item);
+        } else {
+          if (item.cacheFileName && fs.existsSync(path.join(tempFolder, item.cacheFileName))) {
+            try { fs.unlinkSync(path.join(tempFolder, item.cacheFileName)); } catch {}
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("❌ Failed loading ViewOnce persistent store:", e.message);
+  }
+}
+
+function savePersistentStore() {
+  try {
+    const obj = {};
+    for (const [id, item] of viewOnceStore.entries()) {
+      const { buffer, ...rest } = item;
+      obj[id] = rest;
+    }
+    fs.writeFileSync(storeFilePath, JSON.stringify(obj, null, 2));
+  } catch (e) {
+    console.error("❌ Failed saving ViewOnce persistent store:", e.message);
+  }
+}
+
+loadPersistentStore();
 
 function unwrapMessage(msg) {
   if (!msg) return null;
@@ -33,6 +72,19 @@ function unwrapMessage(msg) {
   return current;
 }
 
+function getMediaKeyAndObj(cleanMsg) {
+  if (!cleanMsg || typeof cleanMsg !== 'object') return { type: null, mediaMsg: null };
+
+  const mediaKeys = ['imageMessage', 'videoMessage', 'audioMessage'];
+  for (const k of mediaKeys) {
+    if (cleanMsg[k]) {
+      return { type: k, mediaMsg: cleanMsg[k] };
+    }
+  }
+
+  return { type: null, mediaMsg: null };
+}
+
 function checkIsViewOnce(rawMsg) {
   if (!rawMsg) return false;
   if (rawMsg.viewOnceMessage || rawMsg.viewOnceMessageV2 || rawMsg.viewOnceMessageV2Extension) return true;
@@ -40,10 +92,9 @@ function checkIsViewOnce(rawMsg) {
   const clean = unwrapMessage(rawMsg);
   if (!clean) return false;
 
-  const type = Object.keys(clean)[0];
-  if (!type) return false;
-  const mediaObj = clean[type];
-  if (mediaObj && (mediaObj.viewOnce || clean.viewOnce)) return true;
+  const { mediaMsg } = getMediaKeyAndObj(clean);
+  if (mediaMsg && (mediaMsg.viewOnce || clean.viewOnce)) return true;
+  if (clean.viewOnce) return true;
 
   return false;
 }
@@ -57,11 +108,8 @@ function extractViewOnceMedia(rawMsg) {
   const cleanMsg = unwrapMessage(rawMsg);
   if (!cleanMsg) return null;
 
-  const type = Object.keys(cleanMsg)[0];
-  if (!['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) return null;
-
-  const mediaMsg = cleanMsg[type];
-  if (!mediaMsg) return null;
+  const { type, mediaMsg } = getMediaKeyAndObj(cleanMsg);
+  if (!type || !mediaMsg) return null;
 
   const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
 
@@ -118,7 +166,7 @@ async function downloadMediaBuffer(mediaMsg, mediaType) {
   return buffer;
 }
 
-async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null) {
+async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null, triggerInfo = null) {
   let buffer = cachedBuffer;
   if (!buffer || !buffer.length) {
     buffer = await downloadMediaBuffer(mediaMsg, mediaType);
@@ -137,18 +185,53 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
   const chatType = isGroup ? "Group Chat" : "Direct DM";
   const sentTime = formatTime(msgTimestamp || mek?.messageTimestamp);
 
-  const caption = `╭━━━〔 *👁️ VIEW ONCE RECOVERED* 〕━━━╮
+  let headerTitle = "👁️ VIEW ONCE RECOVERED";
+  let bodyLines = [];
+
+  if (triggerInfo?.action === 'reaction') {
+    headerTitle = "😍 VIEW ONCE REACTED";
+    const reactorTag = triggerInfo.reactor ? `@${triggerInfo.reactor.split('@')[0]}` : "User";
+    bodyLines = [
+      `┃ 🎭 *Reaction:* ${triggerInfo.emoji || '❤️'}`,
+      `┃ 👤 *Reacted By:* ${reactorTag}`,
+      `┃ 📤 *Original Sender:* ${senderTag}`,
+      `┃ 💬 *Chat:* ${chatType}`,
+      `┃ 📁 *Type:* ${mediaType.toUpperCase()}`,
+      `┃ 🕒 *Time:* ${sentTime}`
+    ];
+  } else if (triggerInfo?.action === 'reply') {
+    headerTitle = "💬 VIEW ONCE REPLIED";
+    const replierTag = triggerInfo.replier ? `@${triggerInfo.replier.split('@')[0]}` : "User";
+    bodyLines = [
+      `┃ 👤 *Replied By:* ${replierTag}`,
+      `┃ 📤 *Original Sender:* ${senderTag}`,
+      `┃ 💬 *Chat:* ${chatType}`,
+      `┃ 📁 *Type:* ${mediaType.toUpperCase()}`,
+      `┃ 🕒 *Time:* ${sentTime}`
+    ];
+  } else {
+    bodyLines = [
+      `┃ 👤 *Sender:* ${senderTag}`,
+      `┃ 💬 *Chat:* ${chatType}`,
+      `┃ 📁 *Type:* ${mediaType.toUpperCase()}`,
+      `┃ 🕒 *Sent Time:* ${sentTime}`
+    ];
+  }
+
+  const caption = `╭━━━〔 *${headerTitle}* 〕━━━╮
 ┃
-┃ 👤 *Sender:* ${senderTag}
-┃ 💬 *Chat:* ${chatType}
-┃ 📁 *Type:* ${mediaType.toUpperCase()}
-┃ 🕒 *Sent Time:* ${sentTime}
+${bodyLines.join('\n')}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯
 
 > *© 2026 | Powered by Chathunga Bimsara*`;
 
-  const sendOptions = { mentions: sender ? [sender] : [] };
+  const mentionsSet = new Set();
+  if (sender) mentionsSet.add(sender);
+  if (triggerInfo?.reactor) mentionsSet.add(triggerInfo.reactor);
+  if (triggerInfo?.replier) mentionsSet.add(triggerInfo.replier);
+
+  const sendOptions = { mentions: Array.from(mentionsSet) };
 
   if (mediaType === 'image') {
     await conn.sendMessage(targetJid, { image: { url: filePath }, caption, ...sendOptions });
@@ -168,7 +251,7 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
   }, 10000);
 }
 
-async function sendToOwners(conn, mek, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null) {
+async function sendToOwners(conn, mek, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null, triggerInfo = null) {
   const ownerJids = getOwnerJids(conn);
   if (!ownerJids.length) {
     console.error("❌ AntiViewOnce: No owner JID available.");
@@ -177,7 +260,7 @@ async function sendToOwners(conn, mek, mediaMsg, mediaType, sender, chatJid, msg
 
   for (const targetJid of ownerJids) {
     try {
-      await processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer);
+      await processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer, triggerInfo);
       console.log(`[✓] View Once media (${mediaType}) sent to Owner (${targetJid}).`);
     } catch (err) {
       console.error(`❌ AntiViewOnce send error to ${targetJid}:`, err.message);
@@ -198,7 +281,7 @@ const antiviewoncePlugin = {
       const chatJid = mek.key.remoteJid;
       const timestamp = mek.messageTimestamp || Math.floor(Date.now() / 1000);
 
-      // 1. If incoming message is a View Once message itself
+      // 1. If incoming message is a View Once message itself (Photo, Video, or Voice Chat)
       const voData = extractViewOnceMedia(rawMsg);
       if (voData) {
         if (msgId && !processedMsgIds.has(msgId)) {
@@ -212,7 +295,17 @@ const antiviewoncePlugin = {
             console.error("❌ Failed pre-downloading View Once buffer:", e.message);
           }
 
+          let cacheFileName = null;
+          if (buffer && buffer.length) {
+            const ext = voData.mediaType === 'image' ? '.jpg' : voData.mediaType === 'video' ? '.mp4' : '.ogg';
+            cacheFileName = `vo_cache_${msgId}${ext}`;
+            try {
+              fs.writeFileSync(path.join(tempFolder, cacheFileName), buffer);
+            } catch (e) { cacheFileName = null; }
+          }
+
           viewOnceStore.set(msgId, {
+            cacheFileName,
             buffer,
             mediaMsg: voData.mediaMsg,
             type: voData.type,
@@ -221,9 +314,15 @@ const antiviewoncePlugin = {
             from: chatJid,
             timestamp
           });
+          savePersistentStore();
 
           setTimeout(() => {
+            const item = viewOnceStore.get(msgId);
+            if (item?.cacheFileName) {
+              try { if (fs.existsSync(path.join(tempFolder, item.cacheFileName))) fs.unlinkSync(path.join(tempFolder, item.cacheFileName)); } catch {}
+            }
             viewOnceStore.delete(msgId);
+            savePersistentStore();
           }, 24 * 60 * 60 * 1000);
 
           // Auto-recover and send to owner
@@ -232,9 +331,47 @@ const antiviewoncePlugin = {
         return;
       }
 
-      // 2. If incoming message is a REPLY or REACTION to ANY View Once message (text, video, emoji, sticker, voice note, etc.)
+      // 2. Check if this incoming message is an EMOJI REACTION to a View Once message
+      const reactionMsg = rawMsg.reactionMessage || rawMsg.ephemeralMessage?.message?.reactionMessage;
+      if (reactionMsg) {
+        const emoji = reactionMsg.text;
+        if (!emoji) return; // reaction removed
+
+        const targetId = reactionMsg.key?.id;
+        const reactor = mek.key.participant || mek.key.remoteJid || reactionMsg.key?.participant;
+
+        if (targetId) {
+          let mediaData = viewOnceStore.get(targetId);
+          if (mediaData) {
+            if (!mediaData.buffer && mediaData.cacheFileName && fs.existsSync(path.join(tempFolder, mediaData.cacheFileName))) {
+              mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
+            }
+
+            const reactKey = `react_${msgId}_${targetId}_${emoji}`;
+            if (processedMsgIds.has(reactKey)) return;
+            processedMsgIds.add(reactKey);
+            setTimeout(() => processedMsgIds.delete(reactKey), 5 * 60 * 1000);
+
+            console.log(`[✓] Reaction (${emoji}) to View Once detected (Target Msg ID: ${targetId}). Forwarding to Owner...`);
+            await sendToOwners(
+              conn,
+              mek,
+              mediaData.mediaMsg,
+              mediaData.mediaType,
+              mediaData.sender || sender,
+              mediaData.from || chatJid,
+              mediaData.timestamp || timestamp,
+              mediaData.buffer || null,
+              { action: 'reaction', reactor, emoji }
+            );
+          }
+        }
+        return;
+      }
+
+      // 3. If incoming message is a REPLY to ANY View Once message (text, sticker, voice, media, etc.)
       const ctx = extractContextInfo(rawMsg);
-      const quotedId = ctx?.stanzaId || rawMsg?.reactionMessage?.key?.id;
+      const quotedId = ctx?.stanzaId;
       const quotedMsgObj = ctx?.quotedMessage;
 
       if (!quotedId && !quotedMsgObj) return;
@@ -243,6 +380,9 @@ const antiviewoncePlugin = {
 
       if (quotedId && viewOnceStore.has(quotedId)) {
         mediaData = viewOnceStore.get(quotedId);
+        if (mediaData && !mediaData.buffer && mediaData.cacheFileName && fs.existsSync(path.join(tempFolder, mediaData.cacheFileName))) {
+          mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
+        }
       }
 
       if (!mediaData && quotedMsgObj) {
@@ -259,12 +399,11 @@ const antiviewoncePlugin = {
               timestamp
             };
           } else {
-            const type = Object.keys(cleanQuoted)[0];
-            const mediaObj = cleanQuoted[type];
-            if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type) && (checkIsViewOnce(quotedMsgObj) || mediaObj?.viewOnce || cleanQuoted?.viewOnce)) {
+            const { type, mediaMsg } = getMediaKeyAndObj(cleanQuoted);
+            if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type) && (checkIsViewOnce(quotedMsgObj) || mediaMsg?.viewOnce || cleanQuoted?.viewOnce)) {
               const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
               mediaData = {
-                mediaMsg: mediaObj,
+                mediaMsg,
                 type,
                 mediaType,
                 sender: ctx?.participant || sender,
@@ -291,12 +430,54 @@ const antiviewoncePlugin = {
           mediaData.sender || sender,
           mediaData.from || chatJid,
           mediaData.timestamp || timestamp,
-          mediaData.buffer || null
+          mediaData.buffer || null,
+          { action: 'reply', replier: sender }
         );
       }
 
     } catch (err) {
       console.error("❌ AntiViewOnce hook error:", err.message);
+    }
+  },
+
+  onReaction: async (conn, reactions) => {
+    try {
+      if (!Array.isArray(reactions)) return;
+      for (const r of reactions) {
+        const targetId = r.reaction?.key?.id;
+        const emoji = r.reaction?.text;
+        if (!targetId || !emoji) continue;
+
+        const reactor = r.key?.participant || r.key?.remoteJid || r.reaction?.key?.participant;
+        const chatJid = r.key?.remoteJid || r.reaction?.key?.remoteJid;
+
+        let mediaData = viewOnceStore.get(targetId);
+        if (mediaData) {
+          if (!mediaData.buffer && mediaData.cacheFileName && fs.existsSync(path.join(tempFolder, mediaData.cacheFileName))) {
+            mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
+          }
+
+          const reactKey = `react_${targetId}_${emoji}_${reactor}`;
+          if (processedMsgIds.has(reactKey)) continue;
+          processedMsgIds.add(reactKey);
+          setTimeout(() => processedMsgIds.delete(reactKey), 5 * 60 * 1000);
+
+          console.log(`[✓] Baileys reaction event (${emoji}) to View Once detected (Target Msg ID: ${targetId}). Forwarding to Owner...`);
+          await sendToOwners(
+            conn,
+            null,
+            mediaData.mediaMsg,
+            mediaData.mediaType,
+            mediaData.sender,
+            chatJid || mediaData.from,
+            mediaData.timestamp || Math.floor(Date.now() / 1000),
+            mediaData.buffer || null,
+            { action: 'reaction', reactor, emoji }
+          );
+        }
+      }
+    } catch (err) {
+      console.error("❌ AntiViewOnce onReaction error:", err.message);
     }
   }
 };
@@ -335,9 +516,8 @@ cmd({
             timestamp: quoted.messageTimestamp || mek.messageTimestamp
           };
         } else {
-          const type = Object.keys(cleanQuoted)[0];
+          const { type, mediaMsg } = getMediaKeyAndObj(cleanQuoted);
           if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) {
-            const mediaMsg = cleanQuoted[type];
             const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
             mediaData = {
               mediaMsg,
@@ -380,3 +560,4 @@ if (global.pluginHooks && !global.pluginHooks.includes(antiviewoncePlugin)) {
 }
 
 module.exports = antiviewoncePlugin;
+
