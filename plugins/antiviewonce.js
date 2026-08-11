@@ -151,7 +151,8 @@ function getOwnerJids(conn) {
   return Array.from(jids);
 }
 
-function isSenderOwner(senderJid, conn) {
+function isSenderOwner(senderJid, conn, fromMe = false) {
+  if (fromMe) return true;
   if (!senderJid) return false;
   const normalizedSender = jidNormalizedUser(senderJid);
   const owners = getOwnerJids(conn);
@@ -311,7 +312,8 @@ const antiviewoncePlugin = {
             } catch (e) { cacheFileName = null; }
           }
 
-          const actualSender = mek.key?.fromMe ? (conn.user?.id || sender) : sender;
+          const isFromMe = Boolean(mek.key?.fromMe);
+          const actualSender = isFromMe ? (conn.user?.id ? jidNormalizedUser(conn.user.id) : sender) : sender;
 
           viewOnceStore.set(msgId, {
             cacheFileName,
@@ -320,6 +322,7 @@ const antiviewoncePlugin = {
             type: voData.type,
             mediaType: voData.mediaType,
             sender: actualSender ? jidNormalizedUser(actualSender) : sender,
+            fromMe: isFromMe,
             from: chatJid,
             timestamp
           });
@@ -354,7 +357,7 @@ const antiviewoncePlugin = {
         if (targetId) {
           let mediaData = viewOnceStore.get(targetId);
           if (mediaData) {
-            if (isSenderOwner(mediaData.sender, conn)) {
+            if (isSenderOwner(mediaData.sender, conn, mediaData.fromMe)) {
               console.log(`[i] View Once reaction ignored: original View Once was sent by owner.`);
               return;
             }
@@ -432,7 +435,7 @@ const antiviewoncePlugin = {
       }
 
       if (mediaData && mediaData.mediaMsg) {
-        if (isSenderOwner(mediaData.sender, conn)) {
+        if (isSenderOwner(mediaData.sender, conn, mediaData.fromMe)) {
           console.log(`[i] View Once reply ignored: original View Once was sent by owner.`);
           return;
         }
@@ -479,7 +482,7 @@ const antiviewoncePlugin = {
 
         let mediaData = viewOnceStore.get(targetId);
         if (mediaData) {
-          if (isSenderOwner(mediaData.sender, conn)) {
+          if (isSenderOwner(mediaData.sender, conn, mediaData.fromMe)) {
             console.log(`[i] Baileys View Once reaction ignored: original View Once was sent by owner.`);
             continue;
           }
