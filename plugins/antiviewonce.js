@@ -68,12 +68,39 @@ function extractViewOnceMedia(rawMsg) {
   return { cleanMsg, type, mediaMsg, mediaType };
 }
 
-function getOwnerJid(conn) {
-  if (conn?.user?.id) {
-    return jidNormalizedUser(conn.user.id);
+function extractContextInfo(rawMsg) {
+  if (!rawMsg) return null;
+  const clean = unwrapMessage(rawMsg);
+  if (!clean) return null;
+
+  for (const key of Object.keys(clean)) {
+    if (clean[key] && typeof clean[key] === 'object' && clean[key].contextInfo) {
+      return clean[key].contextInfo;
+    }
   }
-  const num = (config.BOT_OWNER || "94XXXXXXXXX").replace(/[^0-9]/g, "");
-  return num + "@s.whatsapp.net";
+
+  if (clean.contextInfo) return clean.contextInfo;
+  return null;
+}
+
+function getOwnerJids(conn) {
+  const jids = new Set();
+
+  if (config.BOT_OWNER) {
+    const numbers = config.BOT_OWNER.split(/[,;]/);
+    for (let num of numbers) {
+      num = num.replace(/[^0-9]/g, "");
+      if (num && !num.includes("X")) {
+        jids.add(num + "@s.whatsapp.net");
+      }
+    }
+  }
+
+  if (conn?.user?.id) {
+    jids.add(jidNormalizedUser(conn.user.id));
+  }
+
+  return Array.from(jids);
 }
 
 function formatTime(timestamp) {
@@ -82,15 +109,22 @@ function formatTime(timestamp) {
   return date.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 }
 
-async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp) {
+async function downloadMediaBuffer(mediaMsg, mediaType) {
   const stream = await downloadContentFromMessage(mediaMsg, mediaType);
-
   let buffer = Buffer.from([]);
   for await (const chunk of stream) {
     buffer = Buffer.concat([buffer, chunk]);
   }
+  return buffer;
+}
 
-  if (!buffer.length) {
+async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null) {
+  let buffer = cachedBuffer;
+  if (!buffer || !buffer.length) {
+    buffer = await downloadMediaBuffer(mediaMsg, mediaType);
+  }
+
+  if (!buffer || !buffer.length) {
     throw new Error("Empty media buffer received.");
   }
 
@@ -134,6 +168,23 @@ async function processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType,
   }, 10000);
 }
 
+async function sendToOwners(conn, mek, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer = null) {
+  const ownerJids = getOwnerJids(conn);
+  if (!ownerJids.length) {
+    console.error("❌ AntiViewOnce: No owner JID available.");
+    return;
+  }
+
+  for (const targetJid of ownerJids) {
+    try {
+      await processAndSendViewOnce(conn, mek, targetJid, mediaMsg, mediaType, sender, chatJid, msgTimestamp, cachedBuffer);
+      console.log(`[✓] View Once media (${mediaType}) sent to Owner (${targetJid}).`);
+    } catch (err) {
+      console.error(`❌ AntiViewOnce send error to ${targetJid}:`, err.message);
+    }
+  }
+}
+
 const antiviewoncePlugin = {
   name: "antiviewonce",
 
@@ -142,42 +193,110 @@ const antiviewoncePlugin = {
       const rawMsg = mek?.message;
       if (!rawMsg) return;
 
-      const voData = extractViewOnceMedia(rawMsg);
-      if (!voData) return;
-
       const msgId = mek.key?.id;
-      if (msgId && processedMsgIds.has(msgId)) return;
-
       const sender = mek.key.participant || mek.key.remoteJid;
       const chatJid = mek.key.remoteJid;
       const timestamp = mek.messageTimestamp || Math.floor(Date.now() / 1000);
 
-      // Store in memory for manual .vv command fallback
-      if (msgId) {
-        processedMsgIds.add(msgId);
-        setTimeout(() => processedMsgIds.delete(msgId), 10 * 60 * 1000);
+      // 1. If incoming message is a View Once message itself
+      const voData = extractViewOnceMedia(rawMsg);
+      if (voData) {
+        if (msgId && !processedMsgIds.has(msgId)) {
+          processedMsgIds.add(msgId);
+          setTimeout(() => processedMsgIds.delete(msgId), 10 * 60 * 1000);
 
-        viewOnceStore.set(msgId, {
-          mek,
-          mediaMsg: voData.mediaMsg,
-          type: voData.type,
-          sender,
-          from: chatJid,
-          timestamp
-        });
+          let buffer = null;
+          try {
+            buffer = await downloadMediaBuffer(voData.mediaMsg, voData.mediaType);
+          } catch (e) {
+            console.error("❌ Failed pre-downloading View Once buffer:", e.message);
+          }
 
-        setTimeout(() => {
-          viewOnceStore.delete(msgId);
-        }, 24 * 60 * 60 * 1000);
+          viewOnceStore.set(msgId, {
+            buffer,
+            mediaMsg: voData.mediaMsg,
+            type: voData.type,
+            mediaType: voData.mediaType,
+            sender,
+            from: chatJid,
+            timestamp
+          });
+
+          setTimeout(() => {
+            viewOnceStore.delete(msgId);
+          }, 24 * 60 * 60 * 1000);
+
+          // Auto-recover and send to owner
+          await sendToOwners(conn, mek, voData.mediaMsg, voData.mediaType, sender, chatJid, timestamp, buffer);
+        }
+        return;
       }
 
-      // Automatically recover and send directly to Owner's WhatsApp private chat (SILENTLY)
-      const ownerJid = getOwnerJid(conn);
-      await processAndSendViewOnce(conn, mek, ownerJid, voData.mediaMsg, voData.mediaType, sender, chatJid, timestamp);
-      console.log(`[✓] View Once media (${voData.mediaType}) from ${sender} automatically recovered and sent to Owner WhatsApp (${ownerJid}).`);
+      // 2. If incoming message is a REPLY or REACTION to ANY View Once message (text, video, emoji, sticker, voice note, etc.)
+      const ctx = extractContextInfo(rawMsg);
+      const quotedId = ctx?.stanzaId || rawMsg?.reactionMessage?.key?.id;
+      const quotedMsgObj = ctx?.quotedMessage;
+
+      if (!quotedId && !quotedMsgObj) return;
+
+      let mediaData = null;
+
+      if (quotedId && viewOnceStore.has(quotedId)) {
+        mediaData = viewOnceStore.get(quotedId);
+      }
+
+      if (!mediaData && quotedMsgObj) {
+        const cleanQuoted = unwrapMessage(quotedMsgObj);
+        if (cleanQuoted) {
+          const quotedVoData = extractViewOnceMedia(cleanQuoted);
+          if (quotedVoData) {
+            mediaData = {
+              mediaMsg: quotedVoData.mediaMsg,
+              type: quotedVoData.type,
+              mediaType: quotedVoData.mediaType,
+              sender: ctx?.participant || sender,
+              from: chatJid,
+              timestamp
+            };
+          } else {
+            const type = Object.keys(cleanQuoted)[0];
+            const mediaObj = cleanQuoted[type];
+            if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type) && (checkIsViewOnce(quotedMsgObj) || mediaObj?.viewOnce || cleanQuoted?.viewOnce)) {
+              const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
+              mediaData = {
+                mediaMsg: mediaObj,
+                type,
+                mediaType,
+                sender: ctx?.participant || sender,
+                from: chatJid,
+                timestamp
+              };
+            }
+          }
+        }
+      }
+
+      if (mediaData && mediaData.mediaMsg) {
+        const replyKey = `reply_${msgId}`;
+        if (processedMsgIds.has(replyKey)) return;
+        processedMsgIds.add(replyKey);
+        setTimeout(() => processedMsgIds.delete(replyKey), 5 * 60 * 1000);
+
+        console.log(`[✓] Reply to View Once detected (Reply Msg ID: ${msgId}). Forwarding to Owner...`);
+        await sendToOwners(
+          conn,
+          mek,
+          mediaData.mediaMsg,
+          mediaData.mediaType,
+          mediaData.sender || sender,
+          mediaData.from || chatJid,
+          mediaData.timestamp || timestamp,
+          mediaData.buffer || null
+        );
+      }
 
     } catch (err) {
-      console.error("❌ AntiViewOnce auto recover error:", err.message);
+      console.error("❌ AntiViewOnce hook error:", err.message);
     }
   }
 };
@@ -210,6 +329,7 @@ cmd({
           mediaData = {
             mediaMsg: voData.mediaMsg,
             type: voData.type,
+            mediaType: voData.mediaType,
             sender: quoted.sender || from,
             from,
             timestamp: quoted.messageTimestamp || mek.messageTimestamp
@@ -218,9 +338,11 @@ cmd({
           const type = Object.keys(cleanQuoted)[0];
           if (['imageMessage', 'videoMessage', 'audioMessage'].includes(type)) {
             const mediaMsg = cleanQuoted[type];
+            const mediaType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
             mediaData = {
               mediaMsg,
               type,
+              mediaType,
               sender: quoted.sender || from,
               from,
               timestamp: quoted.messageTimestamp || mek.messageTimestamp
@@ -231,13 +353,21 @@ cmd({
     }
 
     if (!mediaData) {
-      return reply("❌ *Please reply to a View Once (One-Time) photo, video, or voice message with .vv!*");
+      return reply("❌ *Please reply to a View Once (One-Time) photo, video, or voice message!*");
     }
 
-    const ownerJid = getOwnerJid(conn);
-    const mediaType = mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio';
+    const mediaType = mediaData.mediaType || (mediaData.type === 'imageMessage' ? 'image' : mediaData.type === 'videoMessage' ? 'video' : 'audio');
 
-    await processAndSendViewOnce(conn, mek, ownerJid, mediaData.mediaMsg, mediaType, mediaData.sender, mediaData.from || from, mediaData.timestamp);
+    await sendToOwners(
+      conn,
+      mek,
+      mediaData.mediaMsg,
+      mediaType,
+      mediaData.sender || from,
+      mediaData.from || from,
+      mediaData.timestamp || mek.messageTimestamp,
+      mediaData.buffer || null
+    );
 
   } catch (e) {
     console.error("ViewOnce Command Error:", e);
