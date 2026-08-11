@@ -342,6 +342,20 @@ async function connectToWA() {
       }
     }
   });
+
+  chathunga_dev.ev.on('messages.reaction', async (reactions) => {
+    if (global.pluginHooks) {
+      for (const plugin of global.pluginHooks) {
+        if (plugin.onReaction) {
+          try {
+            await plugin.onReaction(chathunga_dev, reactions);
+          } catch (e) {
+            console.log("onReaction error:", e);
+          }
+        }
+      }
+    }
+  });
 }
 
 ensureSessionFile();
