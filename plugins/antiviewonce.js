@@ -332,13 +332,15 @@ const antiviewoncePlugin = {
       }
 
       // 2. Check if this incoming message is an EMOJI REACTION to a View Once message
-      const reactionMsg = rawMsg.reactionMessage || rawMsg.ephemeralMessage?.message?.reactionMessage;
+      const cleanMsg = unwrapMessage(rawMsg) || rawMsg;
+      const reactionMsg = cleanMsg.reactionMessage || cleanMsg.encReactionMessage || rawMsg.reactionMessage || rawMsg.encReactionMessage || rawMsg.ephemeralMessage?.message?.reactionMessage;
+
       if (reactionMsg) {
         const emoji = reactionMsg.text;
         if (!emoji) return; // reaction removed
 
         const targetId = reactionMsg.key?.id;
-        const reactor = mek.key.participant || mek.key.remoteJid || reactionMsg.key?.participant;
+        const reactor = mek.key?.participant || (mek.key?.fromMe ? conn.user?.id : mek.key?.remoteJid) || reactionMsg.key?.participant;
 
         if (targetId) {
           let mediaData = viewOnceStore.get(targetId);
@@ -347,7 +349,7 @@ const antiviewoncePlugin = {
               mediaData.buffer = fs.readFileSync(path.join(tempFolder, mediaData.cacheFileName));
             }
 
-            const reactKey = `react_${msgId}_${targetId}_${emoji}`;
+            const reactKey = `react_${targetId}_${emoji}_${reactor}`;
             if (processedMsgIds.has(reactKey)) return;
             processedMsgIds.add(reactKey);
             setTimeout(() => processedMsgIds.delete(reactKey), 5 * 60 * 1000);
@@ -416,6 +418,11 @@ const antiviewoncePlugin = {
       }
 
       if (mediaData && mediaData.mediaMsg) {
+        if (quotedId && !viewOnceStore.has(quotedId)) {
+          viewOnceStore.set(quotedId, mediaData);
+          savePersistentStore();
+        }
+
         const replyKey = `reply_${msgId}`;
         if (processedMsgIds.has(replyKey)) return;
         processedMsgIds.add(replyKey);
@@ -444,11 +451,11 @@ const antiviewoncePlugin = {
     try {
       if (!Array.isArray(reactions)) return;
       for (const r of reactions) {
-        const targetId = r.reaction?.key?.id;
-        const emoji = r.reaction?.text;
+        const targetId = r.reaction?.key?.id || r.targetKey?.id || r.key?.id;
+        const emoji = r.reaction?.text || r.text || r.emoji;
         if (!targetId || !emoji) continue;
 
-        const reactor = r.key?.participant || r.key?.remoteJid || r.reaction?.key?.participant;
+        const reactor = r.key?.participant || (r.key?.fromMe ? conn.user?.id : r.key?.remoteJid) || r.reaction?.key?.participant;
         const chatJid = r.key?.remoteJid || r.reaction?.key?.remoteJid;
 
         let mediaData = viewOnceStore.get(targetId);
