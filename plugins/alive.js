@@ -3,7 +3,7 @@ const config = require('../config');
 
 cmd({
     pattern: "hi",
-    alias: ["Hello", "Hi", "HI"],
+    alias: ["Hello", "Hi", "HI", "whats up"],
     desc: "Check bot online or no.",
     react: "👋",
     category: "main",
