@@ -229,12 +229,6 @@ Contributions, issues, and feature requests are welcome! Feel free to check the 
 - 💬 **WhatsApp:** ChathuBro2007
 - 🐙 **GitHub:** [@chathunga2007](https://github.com/chathunga2007)
 
----
-
-## 📜 License
-
-This project is licensed under the **GPL-3.0 License** - see the [LICENSE](./LICENSE) file for details.
-
 <div align="center">
 
   **⭐ Don't forget to give a STAR to this repository if you find it useful! ⭐**
